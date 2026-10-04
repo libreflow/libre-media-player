@@ -97,3 +97,48 @@ describe('useFilePicker.openFile -- multiple selection', () => {
     expect(loadFile).toHaveBeenCalledWith('/videos/a.mkv')
   })
 })
+
+// Regression test: files picked through the native dialog were routed to
+// the queue WITHOUT the hasVideoExtension filtering that drag-drop applies
+// ("All files" mode on some platforms bypasses the dialog's video filter),
+// so a subtitle or artwork file could enter the playback queue.
+describe('useFilePicker.openFile -- video-only filtering', () => {
+  it('filters non-video files out of a multi-selection', async () => {
+    openMock.mockResolvedValueOnce(['/videos/a.mkv', '/videos/b.srt', '/movies/c.mp4'])
+    const { result, onFilesDropped } = setup()
+    await act(async () => {
+      await result.current.openFile()
+    })
+    expect(onFilesDropped).toHaveBeenCalledWith(['/videos/a.mkv', '/movies/c.mp4'])
+  })
+
+  it('filters a non-video single pick instead of loading it', async () => {
+    openMock.mockResolvedValueOnce('/videos/film.srt')
+    const { result, onFilePicked, loadFile } = setup()
+    await act(async () => {
+      await result.current.openFile()
+    })
+    expect(onFilePicked).not.toHaveBeenCalled()
+    expect(loadFile).not.toHaveBeenCalled()
+  })
+
+  it('is case-insensitive on extensions, like drag-drop', async () => {
+    openMock.mockResolvedValueOnce('/videos/film.MP4')
+    const { result, onFilePicked } = setup()
+    await act(async () => {
+      await result.current.openFile()
+    })
+    expect(onFilePicked).toHaveBeenCalledWith('/videos/film.MP4')
+  })
+
+  it('does nothing when every picked file is filtered out', async () => {
+    openMock.mockResolvedValueOnce(['/videos/a.srt', '/cover.jpg'])
+    const { result, onFilesDropped, onFilePicked, loadFile } = setup()
+    await act(async () => {
+      await result.current.openFile()
+    })
+    expect(onFilesDropped).not.toHaveBeenCalled()
+    expect(onFilePicked).not.toHaveBeenCalled()
+    expect(loadFile).not.toHaveBeenCalled()
+  })
+})

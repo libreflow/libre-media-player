@@ -22,6 +22,9 @@ function basename(path: string): string {
 export function usePlaylist(opts: {
   ready: boolean
   loadFile: (path: string) => Promise<void>
+  // Stops playback entirely (used when the currently-playing item is
+  // removed and nothing else remains to advance to).
+  stopPlayback?: () => void | Promise<void>
   // True while the player is loading a file: an end-file event landing during
   // a load switch comes from the outgoing file, not a natural EOF, and must
   // not trigger an auto-advance that would race the load in flight.
@@ -114,16 +117,38 @@ export function usePlaylist(opts: {
 
   const playPrevious = useCallback(() => {
     if (indexRef.current === -1) return
-    if (indexRef.current > 0) void playIndex(indexRef.current - 1)
+    if (indexRef.current > 0) {
+      void playIndex(indexRef.current - 1)
+    } else if (repeatRef.current && queueRef.current.length > 0) {
+      // Mirror playNext's repeat behavior: wrapping back from the first
+      // item jumps to the last one instead of being a dead end.
+      void playIndex(queueRef.current.length - 1)
+    }
   }, [playIndex])
 
+  const stopPlaybackRef = useRef(opts.stopPlayback)
+  stopPlaybackRef.current = opts.stopPlayback
   const removeAt = useCallback((index: number) => {
+    const current = indexRef.current
     const next = queueRef.current.filter((_, i) => i !== index)
     queueRef.current = next
     setQueue(next)
-    if (index < indexRef.current) setCurrentIndex((c) => c - 1)
-    else if (index === indexRef.current) setCurrentIndex(-1)
-  }, [])
+    if (current === -1) return
+    if (index < current) {
+      setCurrentIndex(current - 1)
+      return
+    }
+    if (index !== current) return
+    // Removing the playing item advances to the item that just shifted into
+    // its slot (VLC behavior). Previously this left the index at -1 while
+    // the file kept playing -- a "ghost" entry with disabled prev/next.
+    if (index < next.length) {
+      void playIndex(index)
+    } else {
+      setCurrentIndex(-1)
+      void stopPlaybackRef.current?.()
+    }
+  }, [playIndex])
 
   const clear = useCallback(() => {
     queueRef.current = []

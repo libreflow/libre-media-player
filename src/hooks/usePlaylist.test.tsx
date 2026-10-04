@@ -90,3 +90,83 @@ describe('usePlaylist.append -- no duplicate entries', () => {
     expect(loadFile).toHaveBeenCalledWith('/videos/a.mkv')
   })
 })
+
+// Regression tests for queue navigation edge cases.
+describe('usePlaylist navigation edge cases', () => {
+  it('playPrevious wraps to the last item when repeat is on', async () => {
+    const { result } = setup()
+    await act(async () => {
+      result.current.append(['/videos/a.mkv', '/videos/b.mkv', '/videos/c.mkv'])
+    })
+    expect(result.current.currentIndex).toBe(0)
+    await act(async () => {
+      result.current.toggleRepeat()
+    })
+    await act(async () => {
+      result.current.playPrevious()
+    })
+    expect(result.current.currentIndex).toBe(2)
+  })
+
+  it('playPrevious stays at the first item when repeat is off', async () => {
+    const { result } = setup()
+    await act(async () => {
+      result.current.append(['/videos/a.mkv', '/videos/b.mkv'])
+    })
+    expect(result.current.currentIndex).toBe(0)
+    await act(async () => {
+      result.current.playPrevious()
+    })
+    expect(result.current.currentIndex).toBe(0)
+  })
+
+  it('removing the playing item advances to the item that shifted into its slot', async () => {
+    const { result, loadFile } = setup()
+    await act(async () => {
+      result.current.append(['/videos/a.mkv', '/videos/b.mkv', '/videos/c.mkv'])
+    })
+    expect(result.current.currentIndex).toBe(0)
+    await act(async () => {
+      result.current.removeAt(0)
+    })
+    expect(result.current.queue.map((i) => i.path)).toEqual(['/videos/b.mkv', '/videos/c.mkv'])
+    expect(result.current.currentIndex).toBe(0)
+    expect(loadFile).toHaveBeenCalledWith('/videos/b.mkv')
+  })
+
+  it('removing the last playing item stops playback when nothing remains', async () => {
+    const stopPlayback = vi.fn()
+    const loadFile = vi.fn(async () => {})
+    const { result } = renderHook(() =>
+      usePlaylist({ ready: true, loadFile, stopPlayback, onError: vi.fn() }),
+    )
+    await act(async () => {
+      result.current.append(['/videos/a.mkv'])
+    })
+    expect(result.current.currentIndex).toBe(0)
+    await act(async () => {
+      result.current.removeAt(0)
+    })
+    expect(result.current.queue).toEqual([])
+    expect(result.current.currentIndex).toBe(-1)
+    expect(stopPlayback).toHaveBeenCalledTimes(1)
+  })
+
+  it('removing an item before the current one shifts the index without reloading', async () => {
+    const { result, loadFile } = setup()
+    await act(async () => {
+      result.current.append(['/videos/a.mkv', '/videos/b.mkv', '/videos/c.mkv'])
+      await Promise.resolve()
+    })
+    await act(async () => {
+      result.current.playIndex(2)
+    })
+    expect(result.current.currentIndex).toBe(2)
+    loadFile.mockClear()
+    await act(async () => {
+      result.current.removeAt(0)
+    })
+    expect(result.current.currentIndex).toBe(1)
+    expect(loadFile).not.toHaveBeenCalled()
+  })
+})

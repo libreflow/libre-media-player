@@ -74,12 +74,16 @@ export function useKeyboardShortcuts(opts: {
           }
           break
         case 'ArrowUp':
-          e.preventDefault()
-          void setProperty('volume', Math.min(MAX_VOLUME, opts.volume + 5))
+          if (opts.hasMedia) {
+            e.preventDefault()
+            void setProperty('volume', Math.min(MAX_VOLUME, opts.volume + 5))
+          }
           break
         case 'ArrowDown':
-          e.preventDefault()
-          void setProperty('volume', Math.max(0, opts.volume - 5))
+          if (opts.hasMedia) {
+            e.preventDefault()
+            void setProperty('volume', Math.max(0, opts.volume - 5))
+          }
           break
         case 's':
           if (opts.hasMedia) {

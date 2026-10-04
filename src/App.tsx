@@ -35,6 +35,7 @@ function App() {
     ready: player.ready,
     loadFile: player.loadFile,
     loadInFlightRef: player.loadInFlightRef,
+    stopPlayback: () => void player.stopPlayback(),
     onError,
   })
   useFileAssociation({
