@@ -212,6 +212,16 @@
   position: relative;
 }
 
+.subtitle-btn-group {
+  display: flex;
+  align-items: stretch;
+}
+
+.subtitle-caret {
+  width: 16px;
+  padding: 0;
+}
+
 .track-menu__panel {
   position: absolute;
   bottom: calc(100% + 8px);
