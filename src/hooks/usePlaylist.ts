@@ -66,10 +66,23 @@ export function usePlaylist(opts: {
 
   // Append files to the queue. When the queue was empty, the first file is
   // played immediately (standard player behavior).
+  //
+  // Paths already present in the queue (including the currently-playing
+  // one) are skipped: dropping/multi-picking a file that's already queued
+  // must be a no-op, not a duplicate entry. Also dedupes within the
+  // incoming batch itself (e.g. the same file dropped twice at once).
   const append = useCallback(
     (paths: string[]) => {
       if (paths.length === 0) return
-      const items = paths.map((p) => ({ path: p, name: basename(p) }))
+      const existing = new Set(queueRef.current.map((i) => i.path))
+      const newPaths: string[] = []
+      for (const p of paths) {
+        if (existing.has(p)) continue
+        existing.add(p)
+        newPaths.push(p)
+      }
+      if (newPaths.length === 0) return
+      const items = newPaths.map((p) => ({ path: p, name: basename(p) }))
       const wasEmpty = queueRef.current.length === 0
       queueRef.current = [...queueRef.current, ...items]
       setQueue(queueRef.current)
