@@ -27,6 +27,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "Libreflow",
     "resources": [
       "lib/**/*"
     ],
