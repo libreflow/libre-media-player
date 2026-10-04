@@ -39,6 +39,7 @@ export function usePlayer(showControls: boolean, onFileLoaded?: (path: string) =
   setTimePos: (t: number) => void
   togglePause: () => void
   setVolume: (v: number) => void
+  stopPlayback: () => Promise<void>
 } {
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -262,6 +263,24 @@ export function usePlayer(showControls: boolean, onFileLoaded?: (path: string) =
     void setProperty('pause', next)
   }, [])
 
+  // Stops playback and clears the current file, returning the player to
+  // its empty state (drop zone). mpv's `stop` clears the observed filename
+  // property back to null, which propagates through the property observer
+  // and flips hasMedia to false. The local state resets mirror loadFileInner's
+  // post-load resets (observed properties only fire on CHANGE, so a leftover
+  // duration/timePos would otherwise survive on the UI side). Resume state is
+  // NOT reset here: the save already happened through the periodic/pause
+  // checkpoints, and keeping the tracked path lets a later checkpoint write
+  // the final position under the right key.
+  const stopPlayback = useCallback(async () => {
+    setPaused(true)
+    pausedRef.current = true
+    setDuration(null)
+    setTimePos(null)
+    setFilename(null)
+    await command('stop')
+  }, [])
+
   const setVolume = useCallback((v: number) => {
     setVolumeState(v)
     void setProperty('volume', v)
@@ -283,5 +302,6 @@ export function usePlayer(showControls: boolean, onFileLoaded?: (path: string) =
     setTimePos,
     togglePause,
     setVolume,
+    stopPlayback,
   }
 }

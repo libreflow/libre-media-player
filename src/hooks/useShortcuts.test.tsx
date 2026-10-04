@@ -1,6 +1,12 @@
-import { act, render } from '@testing-library/react'
+import { act, cleanup, render } from '@testing-library/react'
 import { useCallback, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const setPropertyMock = vi.hoisted(() => vi.fn(async () => {}))
+vi.mock('tauri-plugin-libmpv-api', () => ({
+  setProperty: setPropertyMock,
+}))
+
 import { useKeyboardShortcuts } from './useShortcuts'
 
 // Regression test for a stale-closure bug: useKeyboardShortcuts used to
@@ -48,7 +54,10 @@ function Harness({ onSnapshot }: { onSnapshot: (s: { enabled: boolean; panelOpen
 }
 
 describe('useKeyboardShortcuts', () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+  })
 
   it('toggles motion ("m") repeatedly, not just once, when togglePause/toggleFullscreen stay stable', () => {
     const snapshots: { enabled: boolean; panelOpen: boolean }[] = []
@@ -149,5 +158,34 @@ describe('useKeyboardShortcuts', () => {
     act(() => press('Escape'))
     expect(toggleFullscreen).toHaveBeenCalledTimes(1)
     expect(togglePlaylist).not.toHaveBeenCalled()
+  })
+})
+
+// Regression test: ArrowUp/ArrowDown used to adjust the volume (and
+// preventDefault) even with no media loaded, unlike every other shortcut
+// gated on hasMedia.
+describe('volume shortcuts respect hasMedia', () => {
+  it('does not change the volume on ArrowUp/ArrowDown when hasMedia is false', () => {
+    setPropertyMock.mockClear()
+    function NoMediaHarness() {
+      useKeyboardShortcuts({
+        hasMedia: false,
+        volume: 100,
+        isFullscreen: false,
+        isPlaylistOpen: false,
+        togglePause: () => {},
+        toggleFullscreen: () => {},
+        toggleSubtitles: () => {},
+        toggleMotion: () => {},
+        playNext: () => {},
+        playPrevious: () => {},
+        togglePlaylist: () => {},
+      })
+      return null
+    }
+    render(<NoMediaHarness />)
+    act(() => press('ArrowUp'))
+    act(() => press('ArrowDown'))
+    expect(setPropertyMock).not.toHaveBeenCalled()
   })
 })
