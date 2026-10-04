@@ -18,18 +18,24 @@ export function useFilePicker(opts: {
 
   const openFile = async () => {
     try {
-      const path = await openFileDialog({
+      const paths = await openFileDialog({
         title: 'Ouvrir une vidéo',
-        multiple: false,
+        multiple: true,
         filters: [{ name: 'Vidéo', extensions: VIDEO_EXTENSIONS }],
       })
-      if (!path || Array.isArray(path)) return
-      // Route through the queue like drag-drop does, so the picked file
-      // gets prev/next navigation too instead of playing "outside".
-      if (opts.onFilePicked) {
-        opts.onFilePicked(path)
+      if (!paths) return
+      // Route through the queue like drag-drop does, so picked file(s)
+      // get prev/next navigation too instead of playing "outside".
+      if (Array.isArray(paths)) {
+        if (opts.onFilesDropped) {
+          opts.onFilesDropped(paths)
+        } else if (paths[0]) {
+          await opts.loadFile(paths[0])
+        }
+      } else if (opts.onFilePicked) {
+        opts.onFilePicked(paths)
       } else {
-        await opts.loadFile(path)
+        await opts.loadFile(paths)
       }
     } catch (e) {
       opts.onError(`Impossible d'ouvrir le sélecteur de fichier : ${String(e)}`)
