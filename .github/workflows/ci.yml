@@ -46,3 +46,34 @@ jobs:
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - name: cargo clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+  rust-windows:
+    # The app only ever ships/runs on Windows (see README: Windows file
+    # association via NSIS hooks, the mpv wrapper DLL, winreg-based default
+    # apps registration) -- the Linux `rust` job above only validates that
+    # the code is portable Rust, it never builds or runs the real target.
+    # Several real bugs in this project's history (a native segfault only
+    # reproducible on the compiled Windows exe, aid/sid type mismatches
+    # only rejected by the native wrapper at runtime) were NOT catchable by
+    # a Linux-only CI; this job is the minimum to close that gap for
+    # anything a unit test CAN cover without a full GUI run (cargo test
+    # covers the windows-only default-apps-settings logic added alongside
+    # this job).
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fetch native mpv libraries
+        run: npm ci && npx tauri-plugin-libmpv-api setup-lib
+      - name: cargo check
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+      - name: cargo test
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: cargo clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings

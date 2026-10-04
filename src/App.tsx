@@ -7,6 +7,7 @@ import { useFileAssociation } from './hooks/useFileAssociation'
 import { useSubtitles } from './hooks/useSubtitles'
 import { useMotionInterpolation } from './hooks/useMotionInterpolation'
 import { usePlaylist } from './hooks/usePlaylist'
+import { openDefaultAppsSettings } from './defaultApps'
 import { Controls } from './components/Controls'
 import { PlaylistPanel } from './components/PlaylistPanel'
 import './App.css'
@@ -130,6 +131,9 @@ function App() {
         onPlayNext={playlist.playNext}
         onPlayPrevious={playlist.playPrevious}
         onOpenFile={() => void openFile()}
+        onOpenDefaultAppsSettings={() => {
+          void openDefaultAppsSettings().catch((e) => onError(`Impossible d'ouvrir les réglages : ${String(e)}`))
+        }}
         onTogglePlaylist={() => playlist.setPanelOpen(!playlist.panelOpen)}
         togglePause={player.togglePause}
         toggleFullscreen={toggleFullscreen}

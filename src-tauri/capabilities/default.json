@@ -11,6 +11,7 @@
     "core:window:allow-destroy",
     "libmpv:default",
     "dialog:default",
+    "opener:allow-open-url",
     {
       "identifier": "fs:allow-read-text-file",
       "allow": [{ "path": "$APPCONFIG/*" }]
