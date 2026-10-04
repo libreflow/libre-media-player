@@ -1,6 +1,7 @@
 import { SeekBar } from './controls/SeekBar'
 import { VolumeControl } from './controls/VolumeControl'
 import { TrackMenu } from './controls/TrackMenu'
+import { SubtitleButton } from './controls/SubtitleButton'
 import type { MpvTrack } from '../subtitles'
 
 interface ControlsProps {
@@ -74,25 +75,16 @@ export function Controls(props: ControlsProps) {
           onSelect={onSelectAudioTrack}
           disabledSelected={false}
         />
-        <TrackMenu
-          label="Sous-titres"
-          tracks={subTracks}
-          onSelect={onSelectSubtrack}
-          onDisable={onDisableSubtitles}
-          disabledSelected={!subTracks.some((t) => t.selected)}
-        />
         <VolumeControl volume={volume} setVolume={setVolume} />
-        <button
-          type="button"
-          className={`icon-btn${subtitlesVisible ? ' is-active' : ''}`}
-          onClick={onToggleSubtitles}
-          aria-label={subtitlesVisible ? 'Masquer les sous-titres' : 'Afficher les sous-titres'}
-          title={subtitlesAvailable ? 'Sous-titres (s)' : 'Aucun sous-titre trouvé'}
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm-2-4H10v-2h8v2z" />
-          </svg>
-        </button>
+        <SubtitleButton
+          subtitlesAvailable={subtitlesAvailable}
+          subtitlesVisible={subtitlesVisible}
+          subTracks={subTracks}
+          disabledSelected={!subTracks.some((t) => t.selected)}
+          onToggleSubtitles={onToggleSubtitles}
+          onSelectSubtrack={onSelectSubtrack}
+          onDisableSubtitles={onDisableSubtitles}
+        />
         <button
           type="button"
           className={`icon-btn${motionEnabled ? ' is-active' : ''}`}
