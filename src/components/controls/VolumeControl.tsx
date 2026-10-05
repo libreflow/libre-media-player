@@ -9,6 +9,9 @@ interface VolumeControlProps {
 export function VolumeControl({ volume, setVolume }: VolumeControlProps) {
   const fillPercent = `${Math.min(100, Math.max(0, (volume / MAX_VOLUME) * 100))}%`
   const muted = volume === 0
+  // Three icon states like VLC: crossed speaker when muted, one arc for
+  // a low level, two arcs once the level is comfortable.
+  const low = !muted && volume <= 50
   // Clicking the speaker icon toggles between 0 and the last non-zero
   // value (40 is a sane floor when the slider was never moved).
   const lastNonZeroRef = useRef(40)
@@ -27,10 +30,16 @@ export function VolumeControl({ volume, setVolume }: VolumeControlProps) {
             <path d="M3 10v4h4l5 5V5L7 10H3z" />
             <path d="M19.5 8.5l-1.4-1.4-2.1 2.1-2.1-2.1-1.4 1.4 2.1 2.1-2.1 2.1 1.4 1.4 2.1-2.1 2.1 2.1 1.4-1.4-2.1-2.1z" transform="translate(4 -2)" />
           </svg>
+        ) : low ? (
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <path d="M3 10v4h4l5 5V5L7 10H3z" />
+            <path d="M14.5 8.5a4.5 4.5 0 010 7" stroke="currentColor" strokeWidth="1.6" fill="none" />
+          </svg>
         ) : (
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
             <path d="M3 10v4h4l5 5V5L7 10H3z" />
             <path d="M14.5 8.5a4.5 4.5 0 010 7" stroke="currentColor" strokeWidth="1.6" fill="none" />
+            <path d="M17.5 6a8 8 0 010 12" stroke="currentColor" strokeWidth="1.6" fill="none" />
           </svg>
         )}
       </button>
