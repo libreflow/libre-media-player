@@ -53,6 +53,7 @@ export function Controls(props: ControlsProps) {
         seekingRef={seekingRef}
         onSeekChange={onSeekChange}
         onSeekCommit={onSeekCommit}
+        paused={paused}
       />
       <div className="bottom-row">
         <button type="button" className="icon-btn" onClick={togglePause} aria-label={paused ? 'Lecture' : 'Pause'}>
