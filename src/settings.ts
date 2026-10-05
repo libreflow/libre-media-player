@@ -7,8 +7,6 @@ const SETTINGS_FILE_NAME = 'settings.json'
 // new keys must default to a value that preserves current behavior when the
 // file predates them (undefined = use the built-in default).
 export interface Settings {
-  /** Smooth-motion interpolation (mpv `interpolation` + display-resync). */
-  motionInterpolation: boolean
   /** Last used volume (0-130), restored on startup. */
   volume: number
   /** Queue shuffle preference, restored on startup. */
@@ -18,7 +16,6 @@ export interface Settings {
 }
 
 const DEFAULTS: Settings = {
-  motionInterpolation: false,
   volume: 100,
   shuffle: false,
   repeat: false,

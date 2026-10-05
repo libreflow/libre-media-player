@@ -82,7 +82,7 @@ export function useSubtitles(onError?: (msg: string) => void) {
       // thrown error here means the mpv call itself failed (e.g. called too
       // soon after startup, before mpv finished initializing) -- surface it
       // like every other user-triggered action in the app (openFile,
-      // togglePause, motion.toggle, playlist ops) instead of letting an
+      // togglePause, playlist ops) instead of letting an
       // unhandled rejection escape from `void subtitles.toggle()` in App.tsx.
       onError?.(`Sous-titres indisponibles : ${String(e)}`)
     }

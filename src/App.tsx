@@ -5,7 +5,6 @@ import { useKeyboardShortcuts, useFullscreen, useControlsVisibility } from './ho
 import { useFilePicker } from './hooks/useFilePicker'
 import { useFileAssociation } from './hooks/useFileAssociation'
 import { useSubtitles } from './hooks/useSubtitles'
-import { useMotionInterpolation } from './hooks/useMotionInterpolation'
 import { usePlaylist } from './hooks/usePlaylist'
 import { openDefaultAppsSettings } from './defaultApps'
 import { Controls } from './components/Controls'
@@ -18,7 +17,6 @@ function App() {
   const onError = useCallback((msg: string) => setError(msg), [])
   const subtitles = useSubtitles(onError)
   const player = usePlayer((path) => void subtitles.onFileLoaded(path))
-  const motion = useMotionInterpolation(player.ready)
   const { isFullscreen, toggleFullscreen } = useFullscreen(onError)
   const { isDragOver, openFile } = useFilePicker({
     readyRef: player.readyRef,
@@ -54,7 +52,6 @@ function App() {
     togglePause: player.togglePause,
     toggleFullscreen,
     toggleSubtitles: subtitles.toggle,
-    toggleMotion: () => void motion.toggle(),
     playNext: playlist.playNext,
     playPrevious: playlist.playPrevious,
     togglePlaylist: () => playlist.setPanelOpen(!playlist.panelOpen),
@@ -126,8 +123,6 @@ function App() {
         onSelectSubtrack={(id) => void subtitles.selectSubtrack(id)}
         onDisableSubtitles={() => void subtitles.disableSubtitles()}
         onSelectAudioTrack={(id) => void subtitles.selectAudioTrack(id)}
-        motionEnabled={motion.enabled}
-        onToggleMotion={() => void motion.toggle()}
         hasNext={playlist.currentIndex < playlist.queue.length - 1}
         hasPrevious={playlist.currentIndex > 0}
         onPlayNext={playlist.playNext}

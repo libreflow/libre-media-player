@@ -11,11 +11,11 @@ import { useKeyboardShortcuts } from './useShortcuts'
 
 // Regression test for a stale-closure bug: useKeyboardShortcuts used to
 // depend on [isFullscreen, volume, toggleFullscreen, togglePause] only.
-// toggleMotion/togglePlaylist are plain inline arrows recreated on every
+// togglePlaylist is a plain inline arrow recreated on every
 // App render (not useCallback-memoized), so the keydown listener captured
 // whichever closure existed at the last re-subscribe -- in practice the
 // very first render, since togglePause/toggleFullscreen stay referentially
-// stable. Pressing 'm' or 'l' a second time called a STALE closure that
+// stable. Pressing 'l' a second time called a STALE closure that
 // still read the original state and always recomputed the same result,
 // so the shortcut visibly worked once then appeared frozen.
 function press(key: string) {
@@ -23,17 +23,13 @@ function press(key: string) {
 }
 
 // Mirrors the real reference-stability shape from App.tsx: togglePause and
-// toggleFullscreen are useCallback-stabilized; toggleMotion/togglePlaylist
-// are freshly-created arrows closing over local state, exactly like
-// `() => void motion.toggle()` and `() => playlist.setPanelOpen(!playlist.panelOpen)`.
-function Harness({ onSnapshot }: { onSnapshot: (s: { enabled: boolean; panelOpen: boolean }) => void }) {
-  const [enabled, setEnabled] = useState(false)
+// toggleFullscreen are useCallback-stabilized; togglePlaylist
+// is a freshly-created arrow closing over local state, exactly like
+// `() => playlist.setPanelOpen(!playlist.panelOpen)`.
+function Harness({ onSnapshot }: { onSnapshot: (s: { panelOpen: boolean }) => void }) {
   const [panelOpen, setPanelOpen] = useState(false)
   const stableTogglePause = useCallback(() => {}, [])
   const stableToggleFullscreen = useCallback(() => {}, [])
-  // Exact replica of useMotionInterpolation's `toggle`: useCallback closing
-  // over `enabled`, deps=[enabled] (not an updater function).
-  const motionToggle = useCallback(() => setEnabled(!enabled), [enabled])
 
   useKeyboardShortcuts({
     hasMedia: true,
@@ -43,14 +39,13 @@ function Harness({ onSnapshot }: { onSnapshot: (s: { enabled: boolean; panelOpen
     togglePause: stableTogglePause,
     toggleFullscreen: stableToggleFullscreen,
     toggleSubtitles: () => {},
-    toggleMotion: () => motionToggle(),
     playNext: () => {},
     playPrevious: () => {},
     togglePlaylist: () => setPanelOpen(!panelOpen),
     setVolume: () => {},
   })
 
-  onSnapshot({ enabled, panelOpen })
+  onSnapshot({ panelOpen })
   return null
 }
 
@@ -60,22 +55,8 @@ describe('useKeyboardShortcuts', () => {
     vi.restoreAllMocks()
   })
 
-  it('toggles motion ("m") repeatedly, not just once, when togglePause/toggleFullscreen stay stable', () => {
-    const snapshots: { enabled: boolean; panelOpen: boolean }[] = []
-    render(<Harness onSnapshot={(s) => snapshots.push(s)} />)
-
-    act(() => press('m'))
-    expect(snapshots.at(-1)!.enabled).toBe(true)
-
-    act(() => press('m'))
-    expect(snapshots.at(-1)!.enabled).toBe(false)
-
-    act(() => press('m'))
-    expect(snapshots.at(-1)!.enabled).toBe(true)
-  })
-
   it('toggles the playlist panel ("l") repeatedly, not just once', () => {
-    const snapshots: { enabled: boolean; panelOpen: boolean }[] = []
+    const snapshots: { panelOpen: boolean }[] = []
     render(<Harness onSnapshot={(s) => snapshots.push(s)} />)
 
     act(() => press('l'))
@@ -99,8 +80,7 @@ describe('useKeyboardShortcuts', () => {
         togglePause,
         toggleFullscreen: () => {},
         toggleSubtitles: () => {},
-        toggleMotion: () => {},
-        playNext: () => {},
+            playNext: () => {},
         playPrevious: () => {},
         togglePlaylist: () => {},
         setVolume: () => {},
@@ -124,8 +104,7 @@ describe('useKeyboardShortcuts', () => {
         togglePause: () => {},
         toggleFullscreen,
         toggleSubtitles: () => {},
-        toggleMotion: () => {},
-        playNext: () => {},
+            playNext: () => {},
         playPrevious: () => {},
         togglePlaylist,
         setVolume: () => {},
@@ -150,8 +129,7 @@ describe('useKeyboardShortcuts', () => {
         togglePause: () => {},
         toggleFullscreen,
         toggleSubtitles: () => {},
-        toggleMotion: () => {},
-        playNext: () => {},
+            playNext: () => {},
         playPrevious: () => {},
         togglePlaylist,
         setVolume: () => {},
@@ -180,8 +158,7 @@ describe('volume shortcuts respect hasMedia', () => {
         togglePause: () => {},
         toggleFullscreen: () => {},
         toggleSubtitles: () => {},
-        toggleMotion: () => {},
-        playNext: () => {},
+            playNext: () => {},
         playPrevious: () => {},
         togglePlaylist: () => {},
         setVolume,
@@ -205,8 +182,7 @@ describe('volume shortcuts respect hasMedia', () => {
         togglePause: () => {},
         toggleFullscreen: () => {},
         toggleSubtitles: () => {},
-        toggleMotion: () => {},
-        playNext: () => {},
+            playNext: () => {},
         playPrevious: () => {},
         togglePlaylist: () => {},
         setVolume,
@@ -231,8 +207,7 @@ describe('volume shortcuts respect hasMedia', () => {
         togglePause: () => {},
         toggleFullscreen: () => {},
         toggleSubtitles: () => {},
-        toggleMotion: () => {},
-        playNext: () => {},
+            playNext: () => {},
         playPrevious: () => {},
         togglePlaylist: () => {},
         setVolume,

@@ -16,7 +16,7 @@ import { useSubtitles } from './useSubtitles'
 
 // Regression test: useSubtitles.toggle() used to have no try/catch around
 // its mpv calls, unlike every other user-triggered action in the app
-// (openFile, togglePause, motion.toggle, playlist ops) -- a thrown error
+// (openFile, togglePause, playlist ops) -- a thrown error
 // (e.g. mpv not ready yet) propagated as an unhandled rejection out of
 // `void subtitles.toggle()` in App.tsx instead of surfacing the standard
 // French error banner via onError.

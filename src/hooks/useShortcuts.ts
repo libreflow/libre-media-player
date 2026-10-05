@@ -10,12 +10,12 @@ import { MAX_VOLUME } from '../utils'
 // while still seeing fresh values/callbacks on every keypress.
 //
 // This used to depend on only [isFullscreen, volume, toggleFullscreen,
-// togglePause], which left toggleMotion/togglePlaylist (plain inline arrows
+// togglePause], which left togglePlaylist (a plain inline arrow
 // recreated every App render, not useCallback-memoized) captured by the
 // closure from whichever render last changed one of those four deps -- in
 // practice the very first render, since togglePause/toggleFullscreen are
 // stable and volume/isFullscreen only change on user action. Pressing 'm'
-// or 'l' a second time called a stale closure of toggleMotion/togglePlaylist,
+// 'l' a second time called a stale closure of togglePlaylist,
 // which still read the ORIGINAL `enabled`/`panelOpen` value from that first
 // render and always computed the same "turn on" result -- so the shortcut
 // visibly worked once, then appeared frozen until some other opts field
@@ -28,7 +28,6 @@ export function useKeyboardShortcuts(opts: {
   togglePause: () => void
   toggleFullscreen: () => void
   toggleSubtitles: () => void
-  toggleMotion: () => void
   playNext: () => void
   playPrevious: () => void
   togglePlaylist: () => void
@@ -94,12 +93,6 @@ export function useKeyboardShortcuts(opts: {
           if (opts.hasMedia) {
             e.preventDefault()
             opts.toggleSubtitles()
-          }
-          break
-        case 'm':
-          if (opts.hasMedia) {
-            e.preventDefault()
-            opts.toggleMotion()
           }
           break
         case 'n':
