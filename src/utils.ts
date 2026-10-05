@@ -1,13 +1,5 @@
 export const MAX_VOLUME = 130
 
-// Fraction of the window height mpv reserves at the bottom so the HTML
-// control bar never overlaps the picture. Applied only while the controls
-// are actually visible — see useControlsVisibility + the margin-sync effect
-// in App.tsx. Keeping it fixed regardless of control visibility would centre
-// the video in the wrong (permanently shrunk) region, producing uneven
-// letterboxing once the controls auto-hide.
-export const CONTROLS_MARGIN_RATIO = 0.1
-
 export const VIDEO_EXTENSIONS = [
   'mp4', 'mkv', 'avi', 'mov', 'webm', 'm4v', 'flv', 'wmv', 'ts', 'mpg', 'mpeg',
 ]

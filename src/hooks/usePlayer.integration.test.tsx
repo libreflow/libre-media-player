@@ -13,7 +13,6 @@ vi.mock('tauri-plugin-libmpv-api', () => ({
   command: vi.fn(async () => {}),
   setProperty: vi.fn(async () => {}),
   getProperty: vi.fn(async () => true),
-  setVideoMarginRatio: vi.fn(async () => {}),
 }))
 vi.mock('@tauri-apps/api/path', () => ({
   appConfigDir: vi.fn(async () => '/mock-config/'),
@@ -48,7 +47,7 @@ import { useFilePicker } from './useFilePicker'
 
 // Exact wiring from App.tsx: useFilePicker receives player.loadFile.
 function Harness() {
-  const player = usePlayer(true)
+  const player = usePlayer()
   useFilePicker({
     readyRef: player.readyRef,
     loadFile: player.loadFile,
@@ -109,7 +108,7 @@ describe('usePlayer loadFile: resume-seek failure does not fail the load', () =>
 
     let player: ReturnType<typeof usePlayer> | null = null
     function Harness() {
-      player = usePlayer(true)
+      player = usePlayer()
       return null
     }
     render(<Harness />)
@@ -135,7 +134,7 @@ describe('usePlayer setVolume: debounced persistence', () => {
 
     let player: ReturnType<typeof usePlayer> | null = null
     function Harness() {
-      player = usePlayer(true)
+      player = usePlayer()
       return null
     }
     render(<Harness />)
