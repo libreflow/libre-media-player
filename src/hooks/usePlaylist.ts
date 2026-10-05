@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { listen } from '@tauri-apps/api/event'
-import { command } from 'tauri-plugin-libmpv-api'
+import { command, listenEvents, type MpvEvent } from 'tauri-plugin-libmpv-api'
 
 export interface PlaylistItem {
   path: string
@@ -157,19 +156,23 @@ export function usePlaylist(opts: {
     setCurrentIndex(-1)
   }, [])
 
-  // Auto-advance when the current file reaches EOF. tauri-plugin-libmpv
-  // re-emits mpv's end-file reason as a Tauri event; only advance on a
-  // natural end (reason 'eof'), not on an error or a manual loadfile
-  // switch (those set reason 'redirect'/'stop' and are user-driven anyway).
+  // Auto-advance when the current file reaches EOF. The plugin emits every
+  // mpv event under the single Tauri event name 'mpv-event-{window}' with the
+  // event type in the payload (listenEvents handles the name/payload shape),
+  // so the OLD listener on a bare 'end-file' Tauri event name NEVER fired --
+  // auto-advance was silently dead. Only advance on a natural end (reason
+  // 'eof'), not on an error or a manual loadfile switch (those set reason
+  // 'redirect'/'stop' and are user-driven anyway).
   useEffect(() => {
     if (!opts.ready) return
     let unlisten: (() => void) | undefined
     let cancelled = false
     ;(async () => {
       try {
-        unlisten = await listen<{ reason?: string }>('end-file', (event) => {
+        unlisten = await listenEvents((mpvEvent: MpvEvent) => {
+          if (mpvEvent.event !== 'end-file') return
           if (opts.loadInFlightRef?.current) return
-          if (event.payload?.reason === 'eof') playNext()
+          if (mpvEvent.reason === 'eof') playNext()
         })
       } catch (e) {
         if (!cancelled) opts.onError(`File d'attente indisponible : ${String(e)}`)

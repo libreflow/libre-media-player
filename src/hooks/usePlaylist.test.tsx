@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 
+// Captures the listenEvents callback so tests can simulate mpv events.
+let mpvEventsCb: ((e: { event: string; reason?: string }) => void) | null = null
 vi.mock('tauri-plugin-libmpv-api', () => ({
   command: vi.fn(async () => {}),
-}))
-vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(async () => () => {}),
+  listenEvents: vi.fn(async (cb: (e: { event: string; reason?: string }) => void) => {
+    mpvEventsCb = cb
+    return () => { mpvEventsCb = null }
+  }),
 }))
 
 import { usePlaylist } from './usePlaylist'
@@ -168,5 +171,83 @@ describe('usePlaylist navigation edge cases', () => {
     })
     expect(result.current.currentIndex).toBe(1)
     expect(loadFile).not.toHaveBeenCalled()
+  })
+})
+
+// Regression test: the auto-advance listener used to subscribe to a Tauri
+// event literally named 'end-file', but tauri-plugin-libmpv emits every mpv
+// event under 'mpv-event-{window}' with the event type in the payload
+// (listenEvents handles that shape). The old listener never fired, so EOF
+// auto-advance was silently dead.
+describe('usePlaylist EOF auto-advance', () => {
+  it('advances to the next item on an mpv end-file event with reason eof', async () => {
+    const { result, loadFile } = setup()
+    await act(async () => {
+      result.current.append(['/videos/a.mkv', '/videos/b.mkv'])
+    })
+    expect(result.current.currentIndex).toBe(0)
+    loadFile.mockClear()
+    await act(async () => {
+      mpvEventsCb!({ event: 'end-file', reason: 'eof' })
+    })
+    expect(result.current.currentIndex).toBe(1)
+    expect(loadFile).toHaveBeenCalledWith('/videos/b.mkv')
+  })
+
+  it('does not advance on a non-eof end-file (manual loadfile switch)', async () => {
+    const { result, loadFile } = setup()
+    await act(async () => {
+      result.current.append(['/videos/a.mkv', '/videos/b.mkv'])
+    })
+    loadFile.mockClear()
+    await act(async () => {
+      mpvEventsCb!({ event: 'end-file', reason: 'redirect' })
+    })
+    expect(result.current.currentIndex).toBe(0)
+    expect(loadFile).not.toHaveBeenCalled()
+  })
+
+  it('ignores mpv events that are not end-file', async () => {
+    const { result, loadFile } = setup()
+    await act(async () => {
+      result.current.append(['/videos/a.mkv', '/videos/b.mkv'])
+    })
+    loadFile.mockClear()
+    await act(async () => {
+      mpvEventsCb!({ event: 'file-loaded' })
+      mpvEventsCb!({ event: 'idle' })
+    })
+    expect(result.current.currentIndex).toBe(0)
+    expect(loadFile).not.toHaveBeenCalled()
+  })
+
+  it('does not wrap around at the end of the queue without repeat', async () => {
+    const { result } = setup()
+    await act(async () => {
+      result.current.append(['/videos/a.mkv', '/videos/b.mkv'])
+    })
+    await act(async () => {
+      result.current.playIndex(1)
+    })
+    expect(result.current.currentIndex).toBe(1)
+    await act(async () => {
+      mpvEventsCb!({ event: 'end-file', reason: 'eof' })
+    })
+    expect(result.current.currentIndex).toBe(1)
+  })
+
+  it('wraps to the first item at the end of the queue when repeat is on', async () => {
+    const { result } = setup()
+    await act(async () => {
+      result.current.append(['/videos/a.mkv', '/videos/b.mkv'])
+    })
+    await act(async () => {
+      result.current.playIndex(1)
+      result.current.toggleRepeat()
+    })
+    await act(async () => {
+      mpvEventsCb!({ event: 'end-file', reason: 'eof' })
+    })
+    expect(result.current.currentIndex).toBe(0)
   })
 })
