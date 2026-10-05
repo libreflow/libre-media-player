@@ -4,7 +4,7 @@ import { loadSettings, updateSettings } from '../settings'
 
 // Smooth-motion (fluidity) toggle, backed by mpv's display-sync
 // interpolation. When enabled:
-//   - `video-sync=display-resync` keeps video timing locked to the
+//   - `video-sync=display-resample` keeps video timing locked to the
 //     monitor's refresh rate (mpv adjusts the audio clock slightly).
 //   - `interpolation` blends consecutive frames so pans remain smooth even
 //     when fps and refresh aren't integer multiples (24fps on 60Hz, ...).
@@ -40,7 +40,7 @@ export function useMotionInterpolation(ready: boolean) {
 
   const applyToMpv = async (on: boolean) => {
     if (on) {
-      await setProperty('video-sync', 'display-resync')
+      await setProperty('video-sync', 'display-resample')
       await setProperty('interpolation', 'yes')
     } else {
       await setProperty('video-sync', 'audio')
