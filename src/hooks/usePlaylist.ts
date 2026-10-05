@@ -37,7 +37,7 @@ export function usePlaylist(opts: {
   const [shuffle, setShuffleState] = useState(false)
   const [repeat, setRepeatState] = useState(false)
   // Restore the persisted shuffle/repeat preferences once on mount. Like
-  // every other settings-backed value (volume, motion interpolation), they
+  // every other settings-backed value (volume), they
   // used to be plain useState(false) and silently reset on every restart.
   useEffect(() => {
     let cancelled = false

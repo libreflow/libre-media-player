@@ -11,11 +11,9 @@ interface ControlsProps {
   isFullscreen: boolean
   subtitlesAvailable: boolean
   subtitlesVisible: boolean
-  motionEnabled: boolean
   hasNext: boolean
   hasPrevious: boolean
   onToggleSubtitles: () => void
-  onToggleMotion: () => void
   subTracks: MpvTrack[]
   audioTracks: MpvTrack[]
   onSelectSubtrack: (id: number) => void
@@ -39,8 +37,8 @@ interface ControlsProps {
 export function Controls(props: ControlsProps) {
   const {
     paused, volume, filename, isFullscreen,
-    subtitlesAvailable, subtitlesVisible, motionEnabled, hasNext, hasPrevious,
-    onToggleSubtitles, onToggleMotion, onPlayNext, onPlayPrevious, onOpenFile, onOpenDefaultAppsSettings, onTogglePlaylist,
+    subtitlesAvailable, subtitlesVisible, hasNext, hasPrevious,
+    onToggleSubtitles, onPlayNext, onPlayPrevious, onOpenFile, onOpenDefaultAppsSettings, onTogglePlaylist,
     subTracks, audioTracks, onSelectSubtrack, onDisableSubtitles, onSelectAudioTrack,
     togglePause, toggleFullscreen, setVolume,
     onSeekChange, onSeekCommit, seekingRef, timePos, duration,
@@ -86,17 +84,6 @@ export function Controls(props: ControlsProps) {
           onSelectSubtrack={onSelectSubtrack}
           onDisableSubtitles={onDisableSubtitles}
         />
-        <button
-          type="button"
-          className={`icon-btn${motionEnabled ? ' is-active' : ''}`}
-          onClick={onToggleMotion}
-          aria-label={motionEnabled ? 'Désactiver la fluidité du mouvement' : 'Activer la fluidité du mouvement'}
-          title="Fluidité du mouvement — interpolation mpv (m)"
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M20.38 8.88l-4.24-1.7 1.7-4.24-1.6-.64-1.7 4.24-4.24-1.7-.64 1.6 4.24 1.7-1.7 4.24 1.6.64 1.7-4.24 4.24 1.7.64-1.6-4.24-1.7 1.7-4.24-1.6-.64zM3 15.5l6 6 1.41-1.42-6-6L3 15.5zm12.5 3.5l6-6-1.42-1.42-6 6L15.5 19z" />
-          </svg>
-        </button>
         <span className="filename">{filename ?? ''}</span>
         <button type="button" className="icon-btn" onClick={onTogglePlaylist} aria-label="File d'attente (l)">
           <svg viewBox="0 0 24 24" fill="currentColor">
