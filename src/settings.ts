@@ -11,11 +11,17 @@ export interface Settings {
   motionInterpolation: boolean
   /** Last used volume (0-130), restored on startup. */
   volume: number
+  /** Queue shuffle preference, restored on startup. */
+  shuffle: boolean
+  /** Queue repeat preference, restored on startup. */
+  repeat: boolean
 }
 
 const DEFAULTS: Settings = {
   motionInterpolation: false,
   volume: 100,
+  shuffle: false,
+  repeat: false,
 }
 
 let cachedPath: string | null = null

@@ -66,6 +66,17 @@ export function usePlayer(showControls: boolean, onFileLoaded?: (path: string) =
   // it lives on the resume object which is created just below.
   const trackSelectionRef = useRef<(sel: { sid: string | null; aid: string | null }) => void>(() => {})
   const captureTrackSelection = useCallback(async () => {
+    // Flush a pending debounced volume save: this callback runs before
+    // every resume checkpoint, including the AWAITED one on window close --
+    // without this, a volume changed within the 600ms debounce window was
+    // lost when quitting right after adjusting it.
+    if (volumeSaveTimerRef.current) {
+      clearTimeout(volumeSaveTimerRef.current)
+      volumeSaveTimerRef.current = null
+    }
+    const pendingVolume = pendingVolumeRef.current
+    pendingVolumeRef.current = null
+    if (pendingVolume != null) await updateSettings({ volume: pendingVolume })
     try {
       const [sid, aid] = await Promise.all([
         getProperty('sid', 'string'),
@@ -313,12 +324,15 @@ export function usePlayer(showControls: boolean, onFileLoaded?: (path: string) =
   // meant a settings.json read+write per tick. React state and mpv stay
   // instant; only the disk write waits for the value to settle.
   const volumeSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingVolumeRef = useRef<number | null>(null)
   const setVolume = useCallback((v: number) => {
     setVolumeState(v)
     void setProperty('volume', v)
+    pendingVolumeRef.current = v
     if (volumeSaveTimerRef.current) clearTimeout(volumeSaveTimerRef.current)
     volumeSaveTimerRef.current = setTimeout(() => {
       volumeSaveTimerRef.current = null
+      pendingVolumeRef.current = null
       void updateSettings({ volume: v })
     }, 600)
   }, [])

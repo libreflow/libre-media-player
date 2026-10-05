@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { command, listenEvents, type MpvEvent } from 'tauri-plugin-libmpv-api'
+import { loadSettings, updateSettings } from '../settings'
 
 export interface PlaylistItem {
   path: string
@@ -33,8 +34,27 @@ export function usePlaylist(opts: {
   const [queue, setQueue] = useState<PlaylistItem[]>([])
   const [currentIndex, setCurrentIndex] = useState(-1)
   const [panelOpen, setPanelOpen] = useState(false)
-  const [shuffle, setShuffle] = useState(false)
-  const [repeat, setRepeat] = useState(false)
+  const [shuffle, setShuffleState] = useState(false)
+  const [repeat, setRepeatState] = useState(false)
+  // Restore the persisted shuffle/repeat preferences once on mount. Like
+  // every other settings-backed value (volume, motion interpolation), they
+  // used to be plain useState(false) and silently reset on every restart.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const settings = await loadSettings()
+        if (cancelled) return
+        setShuffleState(settings.shuffle)
+        setRepeatState(settings.repeat)
+      } catch {
+        // best-effort; defaults (false) apply
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Refs mirroring state so the once-attached end-file listener sees fresh
   // values without re-subscribing on every queue change.
@@ -198,8 +218,20 @@ export function usePlaylist(opts: {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: queue position only
   }, [opts.ready, queue.length, currentIndex])
 
-  const toggleShuffle = useCallback(() => setShuffle((v) => !v), [])
-  const toggleRepeat = useCallback(() => setRepeat((v) => !v), [])
+  const toggleShuffle = useCallback(() => {
+    setShuffleState((v) => {
+      const next = !v
+      void updateSettings({ shuffle: next })
+      return next
+    })
+  }, [])
+  const toggleRepeat = useCallback(() => {
+    setRepeatState((v) => {
+      const next = !v
+      void updateSettings({ repeat: next })
+      return next
+    })
+  }, [])
 
   return {
     queue,

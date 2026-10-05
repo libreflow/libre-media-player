@@ -1,8 +1,27 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 
 // Captures the listenEvents callback so tests can simulate mpv events.
 let mpvEventsCb: ((e: { event: string; reason?: string }) => void) | null = null
+// Captured settings writes so tests can assert persistence.
+let settingsState: Record<string, unknown> = {}
+const loadSettingsMock = vi.hoisted(() => vi.fn(async () => ({})))
+const updateSettingsMock = vi.hoisted(() => vi.fn(async () => {}))
+beforeEach(() => {
+  settingsState = {}
+  // Mirror the real loadSettings contract: defaults merged with persisted
+  // values, so unset keys resolve to their defaults rather than undefined.
+  loadSettingsMock.mockImplementation(async () => ({
+    shuffle: false,
+    repeat: false,
+    ...settingsState,
+  }))
+  updateSettingsMock.mockClear()
+})
+vi.mock('../settings', () => ({
+  loadSettings: loadSettingsMock,
+  updateSettings: updateSettingsMock,
+}))
 vi.mock('tauri-plugin-libmpv-api', () => ({
   command: vi.fn(async () => {}),
   listenEvents: vi.fn(async (cb: (e: { event: string; reason?: string }) => void) => {
@@ -249,5 +268,51 @@ describe('usePlaylist EOF auto-advance', () => {
       mpvEventsCb!({ event: 'end-file', reason: 'eof' })
     })
     expect(result.current.currentIndex).toBe(0)
+  })
+})
+
+// Regression test: shuffle/repeat used to be plain useState(false) --
+// toggled state was silently lost on every app restart. They are now
+// persisted via settings.json and restored on mount.
+describe('usePlaylist shuffle/repeat persistence', () => {
+  it('persists toggle changes through updateSettings', async () => {
+    updateSettingsMock.mockClear()
+    const { result } = setup()
+    // Wait for the async settings restore to land before toggling, so the
+    // toggle isn't racing (and overwritten by) the mount-time restore.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    await act(async () => {
+      result.current.toggleShuffle()
+    })
+    expect(result.current.shuffle).toBe(true)
+    expect(updateSettingsMock).toHaveBeenCalledWith({ shuffle: true })
+    await act(async () => {
+      result.current.toggleRepeat()
+    })
+    expect(result.current.repeat).toBe(true)
+    expect(updateSettingsMock).toHaveBeenCalledWith({ repeat: true })
+  })
+
+  it('restores the persisted preferences on mount', async () => {
+    settingsState = { shuffle: true, repeat: true }
+    const { result } = setup()
+    // loadSettings resolves asynchronously -- wait for the restore effect.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    expect(result.current.shuffle).toBe(true)
+    expect(result.current.repeat).toBe(true)
+  })
+
+  it('defaults to false when nothing was persisted', async () => {
+    settingsState = {}
+    const { result } = setup()
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    expect(result.current.shuffle).toBe(false)
+    expect(result.current.repeat).toBe(false)
   })
 })
