@@ -84,3 +84,42 @@ describe('usePlayer + useFilePicker integration: loadFile identity stability', (
     expect(unlistenSpy).not.toHaveBeenCalled()
   })
 })
+
+// Regression test: the resume-seek issued right after loadfile used to be
+// awaited inside loadFileInner's main try/catch. When mpv hadn't finished
+// bringing the file up yet, the seek was rejected ("error running command")
+// and the failure surfaced as "Impossible de lire ce fichier" even though
+// the file loaded and played perfectly. The resume-seek must be best-effort
+// and never fail the load.
+describe('usePlayer loadFile: resume-seek failure does not fail the load', () => {
+  it('shows no error and resolves when the resume seek is rejected by mpv', async () => {
+    const { command } = await import('tauri-plugin-libmpv-api')
+    const commandMock = command as unknown as ReturnType<typeof vi.fn>
+    // loadfile succeeds; only the resume seek fails (mpv not ready yet).
+    commandMock.mockImplementation(async (name: string) => {
+      if (name === 'seek') throw new Error("mpv command failed: Failed to execute command 'seek'")
+      return {}
+    })
+    // Give the new file a remembered position so the resume-seek path runs.
+    const { readTextFile } = await import('@tauri-apps/plugin-fs')
+    const readMock = readTextFile as unknown as ReturnType<typeof vi.fn>
+    readMock.mockResolvedValue(
+      JSON.stringify({ '/videos/a.mkv': { position: 42, duration: 120, updatedAt: 1 } }),
+    )
+
+    let player: ReturnType<typeof usePlayer> | null = null
+    function Harness() {
+      player = usePlayer(true)
+      return null
+    }
+    render(<Harness />)
+    await waitFor(() => expect(player!.ready).toBe(true))
+
+    await act(async () => {
+      await player!.loadFile('/videos/a.mkv')
+    })
+
+    expect(player!.error).toBeNull()
+    expect(player!.filename).toBeNull() // no real mpv events in this mock
+  })
+})
