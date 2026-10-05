@@ -113,14 +113,67 @@
   text-align: center;
 }
 
-/* Sliders: the track is filled with the accent color up to the thumb via an
-   inline `--fill` custom property (percentage), set from the React components. */
+/* Sliders: the track is filled via an inline `--fill` custom property
+   (percentage), set from the React components.
+
+   Seek bar deliberately quiet: thin semi-transparent track, soft white
+   fill instead of the saturated accent -- a progress bar overlaying a
+   video should read at a glance without fighting the picture. The thumb
+   only materializes on hover/focus so the resting bar is a plain line. */
 .seek-bar,
 .volume-bar {
   appearance: none;
-  height: 4px;
+  height: 3px;
   border-radius: 2px;
   outline: none;
+}
+
+.seek-bar {
+  flex: 1;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.85) 0%,
+    rgba(255, 255, 255, 0.85) var(--fill, 0%),
+    rgba(255, 255, 255, 0.18) var(--fill, 0%),
+    rgba(255, 255, 255, 0.18) 100%
+  );
+  transition: height 0.15s ease;
+}
+
+.seek-bar:hover {
+  height: 5px;
+}
+
+.seek-bar::-webkit-slider-thumb,
+.volume-bar::-webkit-slider-thumb {
+  appearance: none;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+}
+
+.seek-bar::-webkit-slider-thumb {
+  width: 0;
+  height: 0;
+  opacity: 0;
+  transition:
+    width 0.15s ease,
+    height 0.15s ease,
+    opacity 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.seek-bar:hover::-webkit-slider-thumb,
+.seek-bar:focus-visible::-webkit-slider-thumb,
+.seek-bar:active::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  opacity: 1;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.15);
+}
+
+.volume-bar {
+  width: 80px;
   background: linear-gradient(
     to right,
     var(--color-accent) 0%,
@@ -128,34 +181,6 @@
     var(--color-track) var(--fill, 0%),
     var(--color-track) 100%
   );
-}
-
-.seek-bar::-webkit-slider-thumb,
-.volume-bar::-webkit-slider-thumb {
-  appearance: none;
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  background: #fff;
-  cursor: pointer;
-  transition: box-shadow var(--transition-fast);
-}
-
-.seek-bar {
-  flex: 1;
-}
-
-.seek-bar::-webkit-slider-thumb {
-  box-shadow: 0 0 0 0 var(--color-accent-soft);
-}
-
-.seek-bar:hover::-webkit-slider-thumb,
-.seek-bar:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 6px var(--color-accent-soft);
-}
-
-.volume-bar {
-  width: 80px;
 }
 
 .volume-bar::-webkit-slider-thumb {
