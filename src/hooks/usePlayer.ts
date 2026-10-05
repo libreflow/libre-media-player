@@ -6,10 +6,8 @@ import {
   command,
   setProperty,
   getProperty,
-  setVideoMarginRatio,
   type MpvObservableProperty,
 } from 'tauri-plugin-libmpv-api'
-import { CONTROLS_MARGIN_RATIO } from '../utils'
 import { loadSettings, updateSettings } from '../settings'
 import { useResumePosition } from './useResumePosition'
 
@@ -31,7 +29,7 @@ export interface PlayerState {
   volume: number
 }
 
-export function usePlayer(showControls: boolean, onFileLoaded?: (path: string) => void): PlayerState & {
+export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & {
   loadFile: (path: string) => Promise<void>
   loadInFlightRef: React.MutableRefObject<boolean>
   seekingRef: React.MutableRefObject<boolean>
@@ -173,15 +171,13 @@ export function usePlayer(showControls: boolean, onFileLoaded?: (path: string) =
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: resume's callbacks are stable (useCallback with [] deps)
   }, [])
 
-  // Keep mpv's reserved bottom margin in sync with the HTML control bar's
-  // real visibility instead of reserving it permanently. Reserving it
-  // unconditionally centred the picture in a permanently-shrunk region, so
-  // the video sat visibly off-centre (extra black bar at the bottom) every
-  // time the controls auto-hid after a few seconds of inactivity.
-  useEffect(() => {
-    if (!ready) return
-    void setVideoMarginRatio({ bottom: showControls ? CONTROLS_MARGIN_RATIO : 0 })
-  }, [ready, showControls])
+  // The control bar used to reserve a bottom video margin via
+  // setVideoMarginRatio so the picture never sat under it -- but that
+  // visibly SHRANK the video (black bars appearing at the sides/bottom in
+  // fullscreen) every time the controls showed or hid. The controls are
+  // now a true overlay: the video keeps its full size at all times and
+  // the bar simply floats above it with a gradient fade. Nothing to sync
+  // anymore.
 
   // Flush a pending debounced volume save on unmount instead of dropping it.
   useEffect(() => () => {

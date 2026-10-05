@@ -85,17 +85,19 @@
   flex-direction: column;
   gap: 6px;
   padding: 8px 16px 12px;
-  background: linear-gradient(to top, var(--color-bg-overlay), rgba(10, 10, 14, 0));
+  /* True overlay: the video keeps its full size at all times (no reserved
+     mpv margin anymore), and the bar floats above it on a light gradient.
+     Fade in/out only -- no translate, so nothing "slides" over the picture
+     when the bar appears; the picture itself never moves. */
+  background: linear-gradient(to top, rgba(10, 10, 14, 0.72), rgba(10, 10, 14, 0));
   opacity: 0;
-  transform: translateY(8px);
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition: opacity 0.22s ease;
   pointer-events: none;
 }
 
 .player.show-controls .controls,
 .player:not(.has-media) .controls {
   opacity: 1;
-  transform: translateY(0);
   pointer-events: auto;
 }
 
