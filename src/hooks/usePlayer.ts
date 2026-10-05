@@ -208,11 +208,30 @@ export function usePlayer(showControls: boolean, onFileLoaded?: (path: string) =
       // Resume where we left off, if we have a remembered position for
       // THIS exact path (not just "some" file -- see getResumePosition's
       // own threshold logic for "too close to start"/"already finished").
+      // Best-effort with a short retry: mpv executes loadfile asynchronously
+      // and a seek issued before the file is fully up can be rejected with
+      // "error running command" -- the file itself loads and plays fine, so
+      // this must NOT fail the whole load (it used to bubble up to the
+      // catch below and show "Impossible de lire ce fichier" while the
+      // video played normally).
       const resumeAt = await resume.resumeAt(path)
       if (resumeAt != null && currentPathRef.current === path) {
-        await command('seek', [resumeAt, 'absolute'])
-        resume.track({ timePos: resumeAt })
-        setTimePos(resumeAt)
+        const seekResume = async (attempts: number): Promise<boolean> => {
+          try {
+            await command('seek', [resumeAt, 'absolute'])
+            return true
+          } catch {
+            if (attempts > 0 && currentPathRef.current === path) {
+              await new Promise((r) => setTimeout(r, 100))
+              return seekResume(attempts - 1)
+            }
+            return false
+          }
+        }
+        if (await seekResume(5)) {
+          resume.track({ timePos: resumeAt })
+          setTimePos(resumeAt)
+        }
       }
       // Restore the remembered audio/sub track selection, if any. Track ids
       // refer to THIS file's track-list (ids are per-file in mpv), so a bad
