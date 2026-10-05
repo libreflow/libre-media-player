@@ -47,6 +47,7 @@ function Harness({ onSnapshot }: { onSnapshot: (s: { enabled: boolean; panelOpen
     playNext: () => {},
     playPrevious: () => {},
     togglePlaylist: () => setPanelOpen(!panelOpen),
+    setVolume: () => {},
   })
 
   onSnapshot({ enabled, panelOpen })
@@ -102,6 +103,7 @@ describe('useKeyboardShortcuts', () => {
         playNext: () => {},
         playPrevious: () => {},
         togglePlaylist: () => {},
+        setVolume: () => {},
       })
       return null
     }
@@ -126,6 +128,7 @@ describe('useKeyboardShortcuts', () => {
         playNext: () => {},
         playPrevious: () => {},
         togglePlaylist,
+        setVolume: () => {},
       })
       return null
     }
@@ -151,6 +154,7 @@ describe('useKeyboardShortcuts', () => {
         playNext: () => {},
         playPrevious: () => {},
         togglePlaylist,
+        setVolume: () => {},
       })
       return null
     }
@@ -166,7 +170,7 @@ describe('useKeyboardShortcuts', () => {
 // gated on hasMedia.
 describe('volume shortcuts respect hasMedia', () => {
   it('does not change the volume on ArrowUp/ArrowDown when hasMedia is false', () => {
-    setPropertyMock.mockClear()
+    const setVolume = vi.fn()
     function NoMediaHarness() {
       useKeyboardShortcuts({
         hasMedia: false,
@@ -180,12 +184,63 @@ describe('volume shortcuts respect hasMedia', () => {
         playNext: () => {},
         playPrevious: () => {},
         togglePlaylist: () => {},
+        setVolume,
       })
       return null
     }
     render(<NoMediaHarness />)
     act(() => press('ArrowUp'))
     act(() => press('ArrowDown'))
-    expect(setPropertyMock).not.toHaveBeenCalled()
+    expect(setVolume).not.toHaveBeenCalled()
+  })
+
+  it('routes ArrowUp/ArrowDown volume changes through setVolume (single path, persisted)', () => {
+    const setVolume = vi.fn()
+    function VolumeHarness() {
+      useKeyboardShortcuts({
+        hasMedia: true,
+        volume: 100,
+        isFullscreen: false,
+        isPlaylistOpen: false,
+        togglePause: () => {},
+        toggleFullscreen: () => {},
+        toggleSubtitles: () => {},
+        toggleMotion: () => {},
+        playNext: () => {},
+        playPrevious: () => {},
+        togglePlaylist: () => {},
+        setVolume,
+      })
+      return null
+    }
+    render(<VolumeHarness />)
+    act(() => press('ArrowUp'))
+    expect(setVolume).toHaveBeenCalledWith(105)
+    act(() => press('ArrowDown'))
+    expect(setVolume).toHaveBeenCalledWith(95)
+  })
+
+  it('clamps keyboard volume to MAX_VOLUME', () => {
+    const setVolume = vi.fn()
+    function VolumeHarness() {
+      useKeyboardShortcuts({
+        hasMedia: true,
+        volume: 128,
+        isFullscreen: false,
+        isPlaylistOpen: false,
+        togglePause: () => {},
+        toggleFullscreen: () => {},
+        toggleSubtitles: () => {},
+        toggleMotion: () => {},
+        playNext: () => {},
+        playPrevious: () => {},
+        togglePlaylist: () => {},
+        setVolume,
+      })
+      return null
+    }
+    render(<VolumeHarness />)
+    act(() => press('ArrowUp'))
+    expect(setVolume).toHaveBeenCalledWith(130)
   })
 })

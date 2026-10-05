@@ -172,6 +172,14 @@ export function usePlayer(showControls: boolean, onFileLoaded?: (path: string) =
     void setVideoMarginRatio({ bottom: showControls ? CONTROLS_MARGIN_RATIO : 0 })
   }, [ready, showControls])
 
+  // Flush a pending debounced volume save on unmount instead of dropping it.
+  useEffect(() => () => {
+    if (volumeSaveTimerRef.current) {
+      clearTimeout(volumeSaveTimerRef.current)
+      volumeSaveTimerRef.current = null
+    }
+  }, [])
+
   const loadFileInner = useCallback(async (path: string) => {
     setError(null)
     // Grab the outgoing file's resume state synchronously, BEFORE loadfile:
@@ -300,10 +308,19 @@ export function usePlayer(showControls: boolean, onFileLoaded?: (path: string) =
     await command('stop')
   }, [])
 
+  // Debounced persistence for the volume: the slider fires setVolume on
+  // every input event during a drag (~60/s), and persisting on each call
+  // meant a settings.json read+write per tick. React state and mpv stay
+  // instant; only the disk write waits for the value to settle.
+  const volumeSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const setVolume = useCallback((v: number) => {
     setVolumeState(v)
     void setProperty('volume', v)
-    void updateSettings({ volume: v })
+    if (volumeSaveTimerRef.current) clearTimeout(volumeSaveTimerRef.current)
+    volumeSaveTimerRef.current = setTimeout(() => {
+      volumeSaveTimerRef.current = null
+      void updateSettings({ volume: v })
+    }, 600)
   }, [])
 
   return {

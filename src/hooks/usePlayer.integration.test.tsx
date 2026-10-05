@@ -123,3 +123,46 @@ describe('usePlayer loadFile: resume-seek failure does not fail the load', () =>
     expect(player!.filename).toBeNull() // no real mpv events in this mock
   })
 })
+
+// Regression test: setVolume used to call updateSettings on every slider
+// input event (~60 writes/sec during a drag). Persistence is now debounced
+// (600ms), while state + mpv updates stay immediate.
+describe('usePlayer setVolume: debounced persistence', () => {
+  it('persists the volume once after rapid changes settle', async () => {
+    const { setProperty } = await import('tauri-plugin-libmpv-api')
+    const setPropertyMock = setProperty as unknown as ReturnType<typeof vi.fn>
+    setPropertyMock.mockClear()
+
+    let player: ReturnType<typeof usePlayer> | null = null
+    function Harness() {
+      player = usePlayer(true)
+      return null
+    }
+    render(<Harness />)
+    await waitFor(() => expect(player!.ready).toBe(true))
+    // The init sequence itself restores the persisted volume via
+    // setProperty('volume', ...) -- count from a clean slate.
+    setPropertyMock.mockClear()
+
+
+    // Fake timers only AFTER init: waitFor needs real timers to poll, and
+    // the debounce is the only timing under test.
+    vi.useFakeTimers()
+    try {
+      // Simulate a drag: 20 rapid setVolume calls.
+      act(() => {
+        for (let i = 0; i < 20; i++) player!.setVolume(50 + i)
+      })
+      // mpv + React state applied immediately, on every call.
+      expect(setPropertyMock).toHaveBeenCalledTimes(20)
+      // The write is still pending -- advance past the debounce window.
+      await act(async () => {
+        vi.advanceTimersByTime(700)
+      })
+
+      expect(player!.volume).toBe(69)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})

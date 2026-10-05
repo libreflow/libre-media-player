@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { command, setProperty } from 'tauri-plugin-libmpv-api'
+import { command } from 'tauri-plugin-libmpv-api'
 import { MAX_VOLUME } from '../utils'
 
 // Global keyboard shortcuts. Read current state via a single ref mirroring
@@ -32,6 +32,11 @@ export function useKeyboardShortcuts(opts: {
   playNext: () => void
   playPrevious: () => void
   togglePlaylist: () => void
+  // Single volume path (same as the slider): updates React state + mpv AND
+  // persists the value. The shortcuts used to setProperty('volume')
+  // directly, which never ran updateSettings -- a keyboard-adjusted volume
+  // was silently lost on restart.
+  setVolume: (v: number) => void
 }) {
   const optsRef = useRef(opts)
   optsRef.current = opts
@@ -76,13 +81,13 @@ export function useKeyboardShortcuts(opts: {
         case 'ArrowUp':
           if (opts.hasMedia) {
             e.preventDefault()
-            void setProperty('volume', Math.min(MAX_VOLUME, opts.volume + 5))
+            opts.setVolume(Math.min(MAX_VOLUME, opts.volume + 5))
           }
           break
         case 'ArrowDown':
           if (opts.hasMedia) {
             e.preventDefault()
-            void setProperty('volume', Math.max(0, opts.volume - 5))
+            opts.setVolume(Math.max(0, opts.volume - 5))
           }
           break
         case 's':

@@ -58,6 +58,7 @@ function App() {
     playNext: playlist.playNext,
     playPrevious: playlist.playPrevious,
     togglePlaylist: () => playlist.setPanelOpen(!playlist.panelOpen),
+    setVolume: player.setVolume,
   })
 
   const onSeekCommit = useCallback((t: number) => {
