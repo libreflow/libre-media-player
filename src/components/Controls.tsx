@@ -54,18 +54,18 @@ export function Controls(props: ControlsProps) {
         paused={paused}
       />
       <div className="bottom-row">
-        <button type="button" className="icon-btn" onClick={togglePause} aria-label={paused ? 'Lecture' : 'Pause'}>
+        <button type="button" className="icon-btn" onClick={togglePause} aria-label={paused ? 'Lecture' : 'Pause'} title={paused ? 'Lecture (Espace)' : 'Pause (Espace)'}>
           {paused ? (
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
           ) : (
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z" /></svg>
           )}
         </button>
-        <button type="button" className="icon-btn" disabled={!hasPrevious} onClick={onPlayPrevious} aria-label="Piste précédente">
+        <button type="button" className="icon-btn" disabled={!hasPrevious} onClick={onPlayPrevious} aria-label="Piste précédente" title="Piste précédente (p)">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
           </svg>
         </button>
-        <button type="button" className="icon-btn" disabled={!hasNext} onClick={onPlayNext} aria-label="Piste suivante">
+        <button type="button" className="icon-btn" disabled={!hasNext} onClick={onPlayNext} aria-label="Piste suivante" title="Piste suivante (n)">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6l8.5 6L6 18V6zm10 0h2v12h-2z" /></svg>
         </button>
         <TrackMenu
@@ -85,19 +85,19 @@ export function Controls(props: ControlsProps) {
           onDisableSubtitles={onDisableSubtitles}
         />
         <span className="filename">{filename ?? ''}</span>
-        <button type="button" className="icon-btn" onClick={onTogglePlaylist} aria-label="File d'attente (l)">
+        <button type="button" className="icon-btn" onClick={onTogglePlaylist} aria-label="File d'attente (l)" title="File d'attente (l)">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2zm14 0h2v2h-2v-2zm2-5l-6 4v-8l6 4z" />
           </svg>
         </button>
-        <button type="button" className="icon-btn" onClick={(e) => { e.stopPropagation(); toggleFullscreen() }} aria-label={isFullscreen ? 'Quitter le plein écran' : 'Plein écran'}>
+        <button type="button" className="icon-btn" onClick={(e) => { e.stopPropagation(); toggleFullscreen() }} aria-label={isFullscreen ? 'Quitter le plein écran' : 'Plein écran'} title={isFullscreen ? 'Quitter le plein écran (f)' : 'Plein écran (f)'}>
           {isFullscreen ? (
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 16h3v3h2v-5H5zm3-8H5v2h5V5H8zm6 11h2v-3h3v-2h-5zm2-11V5h-2v5h5V8z" /></svg>
           ) : (
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7zm-2-4h2V7h3V5H5zm12 7h-3v2h5v-5h-2zM14 5v2h3v3h2V5z" /></svg>
           )}
         </button>
-        <button type="button" className="icon-btn" onClick={onOpenFile} aria-label="Ouvrir un autre fichier">
+        <button type="button" className="icon-btn" onClick={onOpenFile} aria-label="Ouvrir un autre fichier" title="Ouvrir un autre fichier">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z" />
           </svg>

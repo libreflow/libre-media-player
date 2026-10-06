@@ -42,12 +42,12 @@ export function PlaylistPanel({ open, queue, currentIndex, shuffle, repeat, onTo
             <path d="M7 7h10v2l4-3-4-3v2H5v6h2V7zm10 10H7v-2l-4 3 4 3v-2h12v-6h-2v4z" />
           </svg>
         </button>
-        <button type="button" className="icon-btn" aria-label="Vider la file" onClick={onClear}>
+        <button type="button" className="icon-btn" aria-label="Vider la file" title="Vider la file" onClick={onClear}>
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
           </svg>
         </button>
-        <button type="button" className="icon-btn" aria-label="Fermer" onClick={onClose}>
+        <button type="button" className="icon-btn" aria-label="Fermer" title="Fermer (Échap)" onClick={onClose}>
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
           </svg>
@@ -65,6 +65,7 @@ export function PlaylistPanel({ open, queue, currentIndex, shuffle, repeat, onTo
               type="button"
               className="icon-btn"
               aria-label={`Retirer ${item.name}`}
+              title={`Retirer ${item.name}`}
               onClick={(e) => {
                 e.stopPropagation()
                 onRemove(i)

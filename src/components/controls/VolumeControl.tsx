@@ -24,6 +24,7 @@ export function VolumeControl({ volume, setVolume }: VolumeControlProps) {
         className="icon-btn volume-icon"
         onClick={toggleMute}
         aria-label={muted ? 'Réactiver le son' : 'Couper le son'}
+        title={muted ? 'Réactiver le son' : 'Couper le son'}
       >
         {muted ? (
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
