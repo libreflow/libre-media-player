@@ -20,11 +20,16 @@ interface SeekBarProps {
 export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCommit, paused }: SeekBarProps) {
   const [displayPos, setDisplayPos] = useState<number | null>(timePos)
   const timePosRef = useRef<number | null>(timePos)
-  timePosRef.current = timePos
   const pausedRef = useRef(paused)
-  pausedRef.current = paused
   const durationRef = useRef<number | null>(duration)
-  durationRef.current = duration
+  // Mirrored into refs for the rAF callback, but only inside an effect:
+  // writing refs during render is a side effect the React Compiler lint
+  // (rightly) flags; the rAF loop only reads them after commit anyway.
+  useEffect(() => {
+    timePosRef.current = timePos
+    pausedRef.current = paused
+    durationRef.current = duration
+  }, [timePos, paused, duration])
 
   // Follow the raw position whenever it changes (or is cleared), EXCEPT
   // while the user is dragging: during a drag the input's own value is the
