@@ -80,8 +80,17 @@ function App() {
 
       {!hasMedia && (
         <div className="drop-zone">
-          <div className="drop-zone__title">LMP</div>
-          <div className="drop-zone__subtitle">Libre Media Player</div>
+          <svg className="drop-zone__logo" viewBox="0 0 64 64" aria-hidden="true">
+            <defs>
+              <linearGradient id="lmp-logo-grad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor="#8f76ff" />
+                <stop offset="1" stopColor="#6c4bff" />
+              </linearGradient>
+            </defs>
+            <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#lmp-logo-grad)" />
+            <path d="M26 20l20 12-20 12z" fill="#fff" />
+          </svg>
+          <div className="drop-zone__title">Libre Media Player</div>
           <button
             type="button"
             className="open-btn"
@@ -93,6 +102,7 @@ function App() {
           >
             {player.ready ? 'Ouvrir une vidéo…' : 'Initialisation du lecteur…'}
           </button>
+          <div className="drop-zone__hint">…ou glissez-déposez vos fichiers ici</div>
         </div>
       )}
 
