@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { act, render, waitFor } from '@testing-library/react'
 
@@ -106,20 +107,26 @@ describe('usePlayer loadFile: resume-seek failure does not fail the load', () =>
       JSON.stringify({ '/videos/a.mkv': { position: 42, duration: 120, updatedAt: 1 } }),
     )
 
-    let player: ReturnType<typeof usePlayer> | null = null
+    // Capture the hook result via an effect (runs after commit) instead of
+    // mutating an outer variable during render, which the React Compiler
+    // lint rightly flags.
+    const holder: { current: ReturnType<typeof usePlayer> | null } = { current: null }
     function Harness() {
-      player = usePlayer()
+      const player = usePlayer()
+      useEffect(() => {
+        holder.current = player
+      })
       return null
     }
     render(<Harness />)
-    await waitFor(() => expect(player!.ready).toBe(true))
+    await waitFor(() => expect(holder.current!.ready).toBe(true))
 
     await act(async () => {
-      await player!.loadFile('/videos/a.mkv')
+      await holder.current!.loadFile('/videos/a.mkv')
     })
 
-    expect(player!.error).toBeNull()
-    expect(player!.filename).toBeNull() // no real mpv events in this mock
+    expect(holder.current!.error).toBeNull()
+    expect(holder.current!.filename).toBeNull() // no real mpv events in this mock
   })
 })
 
@@ -132,13 +139,19 @@ describe('usePlayer setVolume: debounced persistence', () => {
     const setPropertyMock = setProperty as unknown as ReturnType<typeof vi.fn>
     setPropertyMock.mockClear()
 
-    let player: ReturnType<typeof usePlayer> | null = null
+    // Capture the hook result via an effect (runs after commit) instead of
+    // mutating an outer variable during render, which the React Compiler
+    // lint rightly flags.
+    const holder: { current: ReturnType<typeof usePlayer> | null } = { current: null }
     function Harness() {
-      player = usePlayer()
+      const player = usePlayer()
+      useEffect(() => {
+        holder.current = player
+      })
       return null
     }
     render(<Harness />)
-    await waitFor(() => expect(player!.ready).toBe(true))
+    await waitFor(() => expect(holder.current!.ready).toBe(true))
     // The init sequence itself restores the persisted volume via
     // setProperty('volume', ...) -- count from a clean slate.
     setPropertyMock.mockClear()
@@ -150,7 +163,7 @@ describe('usePlayer setVolume: debounced persistence', () => {
     try {
       // Simulate a drag: 20 rapid setVolume calls.
       act(() => {
-        for (let i = 0; i < 20; i++) player!.setVolume(50 + i)
+        for (let i = 0; i < 20; i++) holder.current!.setVolume(50 + i)
       })
       // mpv + React state applied immediately, on every call.
       expect(setPropertyMock).toHaveBeenCalledTimes(20)
@@ -159,7 +172,7 @@ describe('usePlayer setVolume: debounced persistence', () => {
         vi.advanceTimersByTime(700)
       })
 
-      expect(player!.volume).toBe(69)
+      expect(holder.current!.volume).toBe(69)
     } finally {
       vi.useRealTimers()
     }

@@ -38,7 +38,11 @@ export function useKeyboardShortcuts(opts: {
   setVolume: (v: number) => void
 }) {
   const optsRef = useRef(opts)
-  optsRef.current = opts
+  // Keep the ref in sync inside an effect (not during render) so the
+  // keydown listener below always reads the latest opts.
+  useEffect(() => {
+    optsRef.current = opts
+  })
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {

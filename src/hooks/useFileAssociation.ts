@@ -27,7 +27,11 @@ export function useFileAssociation(opts: {
   // exactly why this hook has to poll it (see below) rather than depend on
   // it directly.
   const optsRef = useRef(opts)
-  optsRef.current = opts
+  // Keep the ref in sync inside an effect (not during render) so the
+  // once-on-mount effect below still reads fresh opts.
+  useEffect(() => {
+    optsRef.current = opts
+  })
 
   useEffect(() => {
     let cancelled = false

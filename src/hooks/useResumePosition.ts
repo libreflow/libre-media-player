@@ -34,7 +34,11 @@ export function useResumePosition(ready: boolean, onBeforeSave?: () => Promise<v
   }, [])
 
   const onBeforeSaveRef = useRef(onBeforeSave)
-  onBeforeSaveRef.current = onBeforeSave
+  // Keep the ref in sync inside an effect (not during render) so the
+  // debounced checkpoint always calls the latest callback.
+  useEffect(() => {
+    onBeforeSaveRef.current = onBeforeSave
+  })
 
   const checkpoint = useCallback(async () => {
     // Give the owner one chance to refresh the tracked state (e.g. the

@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { MAX_VOLUME } from '../../utils'
 
 interface VolumeControlProps {
@@ -15,7 +15,11 @@ export function VolumeControl({ volume, setVolume }: VolumeControlProps) {
   // Clicking the speaker icon toggles between 0 and the last non-zero
   // value (40 is a sane floor when the slider was never moved).
   const lastNonZeroRef = useRef(40)
-  if (volume > 0) lastNonZeroRef.current = volume
+  // Mirrored inside an effect (not during render) for the React Compiler
+  // lint; toggleMute reads it at click time, after commit.
+  useEffect(() => {
+    if (volume > 0) lastNonZeroRef.current = volume
+  }, [volume])
   const toggleMute = () => setVolume(muted ? lastNonZeroRef.current : 0)
   return (
     <div className="volume-row">
