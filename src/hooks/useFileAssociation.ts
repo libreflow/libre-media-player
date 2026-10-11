@@ -17,15 +17,15 @@ import { listen } from '@tauri-apps/api/event'
 //    definition the frontend has been running for a while, so there's no
 //    listener-attachment race here -- push (emit) is fine.
 export function useFileAssociation(opts: {
-  readyRef: React.MutableRefObject<boolean>
+  whenReady: () => Promise<void>
   loadFile: (path: string) => Promise<void>
   onError: (msg: string) => void
 }) {
   // Mirrors opts into a ref so the effect below can stay [] (run once) --
   // loadFile/onError are stable (useCallback with [] deps) in every caller
-  // today, but readyRef.current changes without a re-render, which is
-  // exactly why this hook has to poll it (see below) rather than depend on
-  // it directly.
+  // today, but whenReady() returns a fresh promise per init cycle, which is
+  // exactly why the readiness wait below goes through optsRef rather than
+  // a captured closure.
   const optsRef = useRef(opts)
   // Keep the ref in sync inside an effect (not during render) so the
   // once-on-mount effect below still reads fresh opts.
@@ -41,13 +41,19 @@ export function useFileAssociation(opts: {
       // The player's mpv init (see usePlayer) is itself async and may still
       // be in flight when either the initial-file pull or an open-file event
       // arrives (the OS can launch us and single-instance can forward an
-      // event before mpv has finished initializing). Poll readyRef rather
-      // than failing outright -- loadFile would silently no-op/throw against
-      // a not-yet-initialized player otherwise.
-      const deadline = Date.now() + 10_000
-      while (!optsRef.current.readyRef.current && Date.now() < deadline) {
+      // event before mpv has finished initializing). Await the player's
+      // own readiness promise instead of polling a ref; the timeout guard
+      // keeps a failed/hung init (the promise never resolves) from pinning
+      // the file open forever.
+      try {
+        await Promise.race([
+          optsRef.current.whenReady(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10_000)),
+        ])
+      } catch {
         if (cancelled) return
-        await new Promise((r) => setTimeout(r, 100))
+        optsRef.current.onError("Initialisation du lecteur trop lente : impossible d'ouvrir le fichier")
+        return
       }
       if (cancelled) return
       await optsRef.current.loadFile(path)

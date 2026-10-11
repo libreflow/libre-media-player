@@ -34,6 +34,7 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
   loadInFlightRef: React.MutableRefObject<boolean>
   seekingRef: React.MutableRefObject<boolean>
   readyRef: React.MutableRefObject<boolean>
+  whenReady: () => Promise<void>
   setTimePos: (t: number) => void
   togglePause: () => void
   setVolume: (v: number) => void
@@ -49,6 +50,12 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
   const seekingRef = useRef(false)
   const readyRef = useRef(false)
   const pausedRef = useRef(true)
+  // Resolved once the player's mpv init completes successfully -- lets
+  // callers (file association) await readiness instead of polling readyRef.
+  // Re-installed on every mount cycle so a StrictMode unmount/remount can't
+  // leave callers waiting on a promise from a destroyed player.
+  const readyPromiseRef = useRef<Promise<void>>(Promise.resolve())
+  const whenReady = useCallback(() => readyPromiseRef.current, [])
   // Guards against StrictMode's double-mount racing two concurrent init()
   // calls against an mpv instance that only tolerates one.
   const initPromiseRef = useRef<Promise<unknown> | null>(null)
@@ -98,6 +105,10 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
   useEffect(() => {
     let unlisten: (() => void) | undefined
     let cancelled = false
+    let resolveReady: (() => void) | undefined
+    readyPromiseRef.current = new Promise<void>((resolve) => {
+      resolveReady = resolve
+    })
 
     ;(async () => {
       try {
@@ -153,6 +164,7 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
         }
         setReady(true)
         readyRef.current = true
+        resolveReady?.()
       } catch (e) {
         setError(`Échec d'initialisation du lecteur : ${String(e)}`)
       }
@@ -345,6 +357,7 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
     loadInFlightRef,
     seekingRef,
     readyRef,
+    whenReady,
     setTimePos,
     togglePause,
     setVolume,

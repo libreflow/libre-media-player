@@ -127,8 +127,14 @@ export function useFullscreen(onError: (msg: string) => void) {
   const toggleFullscreen = useCallback(() => {
     const win = getCurrentWindow()
     void win.isFullscreen().then((fs) => {
-      void win.setFullscreen(!fs).catch((e) => onError(`Plein écran indisponible : ${String(e)}`))
-      setIsFullscreen(!fs)
+      // Only flip the React state after the window confirms the change --
+      // an optimistic flip used to leave the button icon stale when
+      // setFullscreen itself failed (the state claimed fullscreen while
+      // the window wasn't).
+      void win
+        .setFullscreen(!fs)
+        .then(() => setIsFullscreen(!fs))
+        .catch((e) => onError(`Plein écran indisponible : ${String(e)}`))
     })
   }, [onError])
 

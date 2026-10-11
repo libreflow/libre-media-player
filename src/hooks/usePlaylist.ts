@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { command, listenEvents, type MpvEvent } from 'tauri-plugin-libmpv-api'
 import { loadSettings, updateSettings } from '../settings'
+import { basename } from '../utils'
 
 export interface PlaylistItem {
   path: string
   name: string
-}
-
-function basename(path: string): string {
-  const slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
-  return slash === -1 ? path : path.slice(slash + 1)
 }
 
 // Playback queue. Files are appended (multi-file drag-drop, file dialog),
