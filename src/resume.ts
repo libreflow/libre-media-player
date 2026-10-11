@@ -1,5 +1,5 @@
 import { appConfigDir, join } from '@tauri-apps/api/path'
-import { exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { exists, mkdir, readTextFile, rename, writeTextFile } from '@tauri-apps/plugin-fs'
 
 const RESUME_FILE_NAME = 'resume.json'
 
@@ -50,14 +50,31 @@ async function readResumeMap(): Promise<ResumeMap> {
   }
 }
 
+// Atomic write (same rationale as settings.ts): write a temp file then
+// rename over the target so a crash mid-write can't corrupt resume.json.
 async function writeResumeMap(map: ResumeMap): Promise<void> {
   const path = await resumeFilePath()
-  await writeTextFile(path, JSON.stringify(map))
+  const tmpPath = `${path}.tmp`
+  try {
+    await writeTextFile(tmpPath, JSON.stringify(map))
+    await rename(tmpPath, path)
+  } catch {
+    try {
+      await writeTextFile(path, JSON.stringify(map))
+    } catch {
+      // Best-effort, same policy as saveResumePosition below.
+    }
+  }
 }
 
 // Drops entries whose file no longer exists on disk, so the map doesn't
 // grow forever with positions of deleted/moved videos. Best-effort: an
 // exists() that throws (e.g. unreadable directory) keeps the entry.
+//
+// NOTE: called only when a NEW entry is added, not on every checkpoint --
+// saveResumePosition fires every few seconds during playback, and probing
+// one path per map entry that often is pure IPC/disk churn for no benefit
+// (existing entries were already pruned when they were added).
 async function prunedMap(map: ResumeMap): Promise<ResumeMap> {
   const entries = await Promise.all(
     Object.entries(map).map(async ([filePath, entry]) => {
@@ -112,6 +129,7 @@ export async function saveResumePosition(
       }
       return
     }
+    const isNewEntry = map[filePath] == null
     map[filePath] = {
       position,
       duration,
@@ -119,7 +137,9 @@ export async function saveResumePosition(
       ...(tracks?.sid != null && { sid: tracks.sid }),
       ...(tracks?.aid != null && { aid: tracks.aid }),
     }
-    await writeResumeMap(await prunedMap(map))
+    // Prune only when the map grows (a new file started playing), not on
+    // every periodic checkpoint -- see prunedMap's NOTE above.
+    await writeResumeMap(isNewEntry ? await prunedMap(map) : map)
   } catch {
     // Disk full, permission error, etc. -- silently skip, see above.
   }

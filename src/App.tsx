@@ -37,7 +37,7 @@ function App() {
     onError,
   })
   useFileAssociation({
-    readyRef: player.readyRef,
+    whenReady: player.whenReady,
     loadFile: player.loadFile,
     onError,
   })
