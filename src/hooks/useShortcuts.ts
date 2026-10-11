@@ -51,8 +51,16 @@ export function useKeyboardShortcuts(opts: {
       if (e.target instanceof HTMLInputElement) return
       // Let Space activate a focused button natively instead of also firing
       // the play/pause shortcut (double action on a single keypress).
-      if (e.key === ' ' && e.target instanceof HTMLButtonElement) return
-      switch (e.key) {
+      if (e.code === 'Space' && e.target instanceof HTMLButtonElement) return
+      // Route letters through e.code (the PHYSICAL key, layout-independent)
+      // instead of e.key (the layout-produced character): matching e.key
+      // made every letter shortcut hostage to the keyboard layout, working
+      // on QWERTY but silently broken on layouts where those keys produce
+      // a different character or sit behind a dead key. Physical-key
+      // matching is layout-independent by construction. Ignore chords so
+      // an OS/extension modifier shortcut is never hijacked.
+      if (e.ctrlKey || e.altKey || e.metaKey) return
+      switch (letterShortcut(e) ?? e.key) {
         case ' ':
         case 'k':
           e.preventDefault()
@@ -63,6 +71,24 @@ export function useKeyboardShortcuts(opts: {
             e.preventDefault()
             opts.toggleFullscreen()
           }
+          break
+        case 's':
+          if (opts.hasMedia) {
+            e.preventDefault()
+            opts.toggleSubtitles()
+          }
+          break
+        case 'n':
+          e.preventDefault()
+          if (opts.hasMedia) opts.playNext()
+          break
+        case 'p':
+          e.preventDefault()
+          if (opts.hasMedia) opts.playPrevious()
+          break
+        case 'l':
+          e.preventDefault()
+          opts.togglePlaylist()
           break
         case 'Escape':
           // Close the topmost layer first: the queue panel, then fullscreen.
@@ -93,24 +119,6 @@ export function useKeyboardShortcuts(opts: {
             opts.setVolume(Math.max(0, opts.volume - 5))
           }
           break
-        case 's':
-          if (opts.hasMedia) {
-            e.preventDefault()
-            opts.toggleSubtitles()
-          }
-          break
-        case 'n':
-          e.preventDefault()
-          if (opts.hasMedia) opts.playNext()
-          break
-        case 'p':
-          e.preventDefault()
-          if (opts.hasMedia) opts.playPrevious()
-          break
-        case 'l':
-          e.preventDefault()
-          opts.togglePlaylist()
-          break
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -119,6 +127,19 @@ export function useKeyboardShortcuts(opts: {
     // field, including callbacks of any stability), so the listener never
     // needs to re-subscribe -- see the hook-level comment above.
   }, [])
+}
+
+// Maps a keydown to the letter shortcut it should trigger, based on the
+// PHYSICAL key (e.code) rather than the character it produced (e.key):
+// matching e.key worked on QWERTY but silently broke on layouts where our
+// letters sit behind Shift or dead keys. Physical-key matching makes every
+// shortcut layout-independent by construction (the 'KeyN' position always
+// means next, whether the layout prints 'n', digits-with-Shift or a
+// composed accent). Returns null for non-letter keys so the caller falls
+// back to e.key (Space, arrows and Escape are the same on every layout).
+function letterShortcut(e: KeyboardEvent): string | null {
+  const m = /^Key([A-Z])$/.exec(e.code)
+  return m ? m[1].toLowerCase() : null
 }
 
 export function useFullscreen(onError: (msg: string) => void) {

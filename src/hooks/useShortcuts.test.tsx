@@ -18,9 +18,13 @@ import { useKeyboardShortcuts } from './useShortcuts'
 // stable. Pressing 'l' a second time called a STALE closure that
 // still read the original state and always recomputed the same result,
 // so the shortcut visibly worked once then appeared frozen.
-function press(key: string) {
-  window.dispatchEvent(new KeyboardEvent('keydown', { key }))
+function press(key: string, code?: string) {
+  window.dispatchEvent(new KeyboardEvent('keydown', { key, code: code ?? key }))
 }
+
+// jsdom's KeyboardEvent supports the `code` init property; the explicit
+// cast keeps the common no-code press() call sites unchanged.
+
 
 // Mirrors the real reference-stability shape from App.tsx: togglePause and
 // toggleFullscreen are useCallback-stabilized; togglePlaylist
@@ -67,6 +71,61 @@ describe('useKeyboardShortcuts', () => {
 
     act(() => press('l'))
     expect(snapshots.at(-1)!.panelOpen).toBe(true)
+  })
+
+  it('matches letter shortcuts by PHYSICAL key (layout-independent), not e.key', () => {
+    // On AZERTY, the physical 'KeyL' position produces the same 'l', but
+    // the invariant that matters is: the shortcut follows the physical key
+    // whatever character the layout prints. Simulate a layout where the
+    // 'KeyL' position produces a different character (e.g. a Dvorak-like
+    // layout printing 'n' there) -- the shortcut must still fire 'l'.
+    const togglePlaylist = vi.fn()
+    function LayoutHarness() {
+      useKeyboardShortcuts({
+        hasMedia: true,
+        volume: 100,
+        isFullscreen: false,
+        isPlaylistOpen: false,
+        togglePause: () => {},
+        toggleFullscreen: () => {},
+        toggleSubtitles: () => {},
+        playNext: () => {},
+        playPrevious: () => {},
+        togglePlaylist,
+        setVolume: () => {},
+      })
+      return null
+    }
+    render(<LayoutHarness />)
+    act(() => press('n', 'KeyL'))
+    expect(togglePlaylist).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores Ctrl/Alt/Meta chords so OS shortcuts are never hijacked', () => {
+    const togglePlaylist = vi.fn()
+    function ChordHarness() {
+      useKeyboardShortcuts({
+        hasMedia: true,
+        volume: 100,
+        isFullscreen: false,
+        isPlaylistOpen: false,
+        togglePause: () => {},
+        toggleFullscreen: () => {},
+        toggleSubtitles: () => {},
+        playNext: () => {},
+        playPrevious: () => {},
+        togglePlaylist,
+        setVolume: () => {},
+      })
+      return null
+    }
+    render(<ChordHarness />)
+    act(() =>
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'l', code: 'KeyL', ctrlKey: true }),
+      ),
+    )
+    expect(togglePlaylist).not.toHaveBeenCalled()
   })
 
   it('still respects hasMedia=false by not calling togglePause on space/k', () => {
