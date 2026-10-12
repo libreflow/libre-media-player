@@ -1,0 +1,24 @@
+name: release-please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          # single package at the repo root (see release-please-config.json):
+          # bumps package.json + src-tauri/tauri.conf.json (tauri manifest)
+          # + src-tauri/Cargo.toml (toml updater) and maintains CHANGELOG.md.
+          # Creating a release PR does NOT need extra config; the action
+          # reads release-please-config.json from the repo root.
+          # The token below is the workflow's default (identical to
+          # `secrets.GITHUB_TOKEN`); explicit for clarity.
+          token: ${{ secrets.GITHUB_TOKEN }}
