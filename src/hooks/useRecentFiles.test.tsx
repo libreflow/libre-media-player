@@ -1,0 +1,92 @@
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+// useRecentFiles persists through recent.ts (plugin-fs under the hood);
+// mock it so the hook's wiring (prune-on-mount, record->list update,
+// open->loadFile, clear) is tested without a Tauri webview.
+const recentMock = vi.hoisted(() => ({
+  addRecentFile: vi.fn(async (path: string, name: string) => [
+    { path, name, openedAt: 1 },
+  ]),
+  pruneRecentFiles: vi.fn(async () => [
+    { path: 'C:/movies/a.mkv', name: 'a.mkv', openedAt: 1 },
+    { path: 'C:/movies/b.mkv', name: 'b.mkv', openedAt: 2 },
+  ]),
+  clearRecentFiles: vi.fn(async () => {}),
+}))
+
+vi.mock('../recent', () => recentMock)
+
+import { useRecentFiles } from './useRecentFiles'
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+})
+
+describe('useRecentFiles', () => {
+  it('loads and shows the pruned recents list on mount', async () => {
+    const { result } = renderHook(() =>
+      useRecentFiles({ loadFile: vi.fn(), onError: vi.fn() }),
+    )
+    await waitFor(() => {
+      expect(result.current.recents).toHaveLength(2)
+    })
+    expect(result.current.recents[0].path).toBe('C:/movies/a.mkv')
+  })
+
+  it('recordOpened updates the list from the persisted result', async () => {
+    const { result } = renderHook(() =>
+      useRecentFiles({ loadFile: vi.fn(), onError: vi.fn() }),
+    )
+    await waitFor(() => {
+      expect(result.current.recents).toHaveLength(2)
+    })
+    act(() => result.current.recordOpened('C:/movies/new.mkv'))
+    await waitFor(() => {
+      expect(recentMock.addRecentFile).toHaveBeenCalledWith('C:/movies/new.mkv', 'new.mkv')
+      expect(result.current.recents).toHaveLength(1)
+    })
+  })
+
+  it('openRecent routes through loadFile', async () => {
+    const loadFile = vi.fn(async () => {})
+    const { result } = renderHook(() =>
+      useRecentFiles({ loadFile, onError: vi.fn() }),
+    )
+    await waitFor(() => {
+      expect(result.current.recents).toHaveLength(2)
+    })
+    act(() => result.current.openRecent('C:/movies/a.mkv'))
+    await waitFor(() => {
+      expect(loadFile).toHaveBeenCalledWith('C:/movies/a.mkv')
+    })
+  })
+
+  it('openRecent surfaces loadFile failures through onError', async () => {
+    const loadFile = vi.fn(async () => {
+      throw new Error('boom')
+    })
+    const onError = vi.fn()
+    const { result } = renderHook(() => useRecentFiles({ loadFile, onError }))
+    await waitFor(() => {
+      expect(result.current.recents).toHaveLength(2)
+    })
+    act(() => result.current.openRecent('C:/movies/a.mkv'))
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalled()
+    })
+  })
+
+  it('clear empties the list and persists the clear', async () => {
+    const { result } = renderHook(() =>
+      useRecentFiles({ loadFile: vi.fn(), onError: vi.fn() }),
+    )
+    await waitFor(() => {
+      expect(result.current.recents).toHaveLength(2)
+    })
+    act(() => result.current.clear())
+    expect(result.current.recents).toEqual([])
+    expect(recentMock.clearRecentFiles).toHaveBeenCalled()
+  })
+})
