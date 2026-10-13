@@ -6,6 +6,7 @@ import { useFilePicker } from './hooks/useFilePicker'
 import { useFileAssociation } from './hooks/useFileAssociation'
 import { useSubtitles } from './hooks/useSubtitles'
 import { usePlaylist } from './hooks/usePlaylist'
+import { useRecentFiles } from './hooks/useRecentFiles'
 import { openDefaultAppsSettings } from './defaultApps'
 import { Controls } from './components/Controls'
 import { PlaylistPanel } from './components/PlaylistPanel'
@@ -18,9 +19,27 @@ function App() {
   const subtitles = useSubtitles(onError)
   const player = usePlayer((path) => void subtitles.onFileLoaded(path))
   const { isFullscreen, toggleFullscreen } = useFullscreen(onError)
+  const { recents, recordOpened, openRecent, clear: clearRecents } = useRecentFiles({
+    loadFile: player.loadFile,
+    onError,
+  })
+  // Single load path wrapped so every successful open (picker, drag-drop,
+  // file association, playlist navigation, recents) lands in the recents
+  // list. recordOpened is stable ([] deps) so the wrapper only changes
+  // identity when player.loadFile does, which keeps every downstream
+  // effect subscription (drag-drop listener, playlist end-file listener)
+  // as stable as before.
+  const loadFile = useCallback(
+    (path: string) =>
+      player.loadFile(path).then((result) => {
+        recordOpened(path)
+        return result
+      }),
+    [player.loadFile, recordOpened],
+  )
   const { isDragOver, openFile } = useFilePicker({
     readyRef: player.readyRef,
-    loadFile: player.loadFile,
+    loadFile,
     onFilesDropped: (paths) => {
       if (player.readyRef.current) playlist.append(paths)
     },
@@ -31,14 +50,14 @@ function App() {
   })
   const playlist = usePlaylist({
     ready: player.ready,
-    loadFile: player.loadFile,
+    loadFile,
     loadInFlightRef: player.loadInFlightRef,
     stopPlayback: () => void player.stopPlayback(),
     onError,
   })
   useFileAssociation({
     whenReady: player.whenReady,
-    loadFile: player.loadFile,
+    loadFile,
     onError,
   })
 
@@ -103,6 +122,40 @@ function App() {
             {player.ready ? 'Ouvrir une vidéo…' : 'Initialisation du lecteur…'}
           </button>
           <div className="drop-zone__hint">…ou glissez-déposez vos fichiers ici</div>
+          {recents.length > 0 && (
+            <div className="recents">
+              <div className="recents__header">
+                <span className="recents__title">Récemment ouverts</span>
+                <button
+                  type="button"
+                  className="recents__clear"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    clearRecents()
+                  }}
+                >
+                  Effacer
+                </button>
+              </div>
+              <ul className="recents__list">
+                {recents.map((entry) => (
+                  <li key={entry.path}>
+                    <button
+                      type="button"
+                      className="recents__item"
+                      title={entry.path}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openRecent(entry.path)
+                      }}
+                    >
+                      {entry.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 

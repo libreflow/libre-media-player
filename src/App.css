@@ -91,6 +91,80 @@
   letter-spacing: 0.3px;
 }
 
+/* Recently opened files (home screen only, hidden while a video plays).
+   Capped at a handful of entries in recent.ts so the list stays scannable. */
+.recents {
+  -webkit-app-region: no-drag;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 0;
+  width: min(480px, calc(100% - 64px));
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.recents__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.recents__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.recents__clear {
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: var(--color-text-faint);
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.recents__clear:hover {
+  color: var(--color-text);
+}
+
+.recents__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recents__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--color-text);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background var(--transition-fast);
+}
+
+.recents__item:hover {
+  background: var(--color-accent-bg, rgba(108, 75, 255, 0.12));
+}
+
 /* Respect users who prefer calmer motion: the entrance animation and the
    hover lift are disabled, everything else stays. */
 @media (prefers-reduced-motion: reduce) {
