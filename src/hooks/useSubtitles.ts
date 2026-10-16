@@ -3,8 +3,9 @@ import {
   audioTracks,
   countSubtitleTracks,
   findSidecarSubtitle,
-  isSubtitleVisible,
+  isSubtitleActive,
   loadSubtitle,
+  selectedSubtitleTrackId,
   setAudioTrack,
   setSubtitleTrack,
   setSubtitleVisible,
@@ -52,7 +53,10 @@ export function useSubtitles(onError?: (msg: string) => void) {
           // non-zero for any playable file.
           const subCount = await countSubtitleTracks()
           setAvailable(subCount > 0)
-          setVisible(subCount > 0 ? await isSubtitleVisible() : false)
+          // isSubtitleActive (sid != no AND sub-visibility) rather than
+          // sub-visibility alone: mpv keeps sub-visibility=yes with sid=no,
+          // which left the button lit after "Désactivés" + reopen.
+          setVisible(subCount > 0 ? await isSubtitleActive() : false)
         }
       }
       await refreshTracks()
@@ -73,10 +77,22 @@ export function useSubtitles(onError?: (msg: string) => void) {
       if ((await countSubtitleTracks()) === 0) return
       // Prefer mpv's real state: if an embedded track is active, toggling
       // visibility applies to it too, not just our sidecar.
-      const next = !(await isSubtitleVisible())
+      // Base "next" on isSubtitleActive, not sub-visibility alone: mpv
+      // keeps sub-visibility=yes even with sid=no ("Désactivés" in the
+      // track menu), which made the button toggle on a hidden state and
+      // stay lit (violet) with no subtitles on screen.
+      const next = !(await isSubtitleActive())
       await setSubtitleVisible(next)
+      if (next && (await selectedSubtitleTrackId()) === 'no') {
+        // No track selected: visibility alone shows nothing -- re-select
+        // the first available sub track so turning subtitles back on
+        // actually displays something.
+        const tracks = await subtitleTracks()
+        if (tracks.length > 0) await setSubtitleTrack(tracks[0].id)
+      }
       setVisible(next)
       setAvailable(true)
+      void refreshTracks()
     } catch (e) {
       // Unlike the "no sub track" case above (a normal, silent no-op), a
       // thrown error here means the mpv call itself failed (e.g. called too
