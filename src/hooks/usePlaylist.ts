@@ -207,12 +207,21 @@ export function usePlaylist(opts: {
   // than queue length: a 2-file queue playing the second (last) item would
   // otherwise hit EOF with keep-open='no' and show a black window instead
   // of the frozen final frame.
+  // With repeat ON, the end of the last item wraps to the first (playNext),
+  // so it counts as "has a next" too: keep-open='always' would freeze the
+  // final frame, mpv would never emit the eof end-file event, and the
+  // queue would silently stop instead of looping. Shuffle is handled the
+  // same way: with >1 item, playNext always picks another one.
   useEffect(() => {
     if (!opts.ready) return
-    const hasNext = currentIndex >= 0 && currentIndex < queue.length - 1
+    const hasNext =
+      currentIndex >= 0 &&
+      (currentIndex < queue.length - 1 ||
+        (repeat && queue.length > 0) ||
+        (shuffle && queue.length > 1))
     void command('set_property', ['keep-open', hasNext ? 'no' : 'always'])
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: queue position only
-  }, [opts.ready, queue.length, currentIndex])
+  }, [opts.ready, queue.length, currentIndex, repeat, shuffle])
 
   const toggleShuffle = useCallback(() => {
     setShuffleState((v) => {
