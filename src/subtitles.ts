@@ -122,6 +122,21 @@ export async function isSubtitleVisible(): Promise<boolean> {
   return (await getProperty('sub-visibility', 'flag')) ?? false
 }
 
+// `sub-visibility` stays `yes` even when no subtitle track is selected
+// (sid=no, e.g. after picking "Désactivés" in the track menu), so it alone
+// can't tell whether subtitles are actually rendered -- the toggle button
+// ended up lit ("active") with nothing on screen. The real condition is:
+// a track is selected AND visibility is on.
+export async function isSubtitleActive(): Promise<boolean> {
+  const sid = (await getProperty<string>('sid', 'string')) ?? 'no'
+  if (sid === 'no') return false
+  return isSubtitleVisible()
+}
+
+export async function selectedSubtitleTrackId(): Promise<string> {
+  return (await getProperty<string>('sid', 'string')) ?? 'no'
+}
+
 export async function setSubtitleVisible(visible: boolean): Promise<void> {
   await setProperty('sub-visibility', visible)
 }
