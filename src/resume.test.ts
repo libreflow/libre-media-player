@@ -23,12 +23,15 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   }),
 }))
 
-import { getResumePosition, saveResumePosition } from './resume'
+import { __resetResumeCacheForTests, getResumePosition, saveResumePosition } from './resume'
 
 const PATH = 'C:/movies/film.mkv'
 
 beforeEach(() => {
   memory.clear()
+  // The resume module caches the map + path at module level; reset them
+  // so each test starts from a clean slate (no leak from a previous test).
+  __resetResumeCacheForTests()
   // prunedMap() checks that each tracked video still exists on disk; the
   // test's PATH must therefore "exist" in the mocked filesystem.
   memory.set(PATH, '')

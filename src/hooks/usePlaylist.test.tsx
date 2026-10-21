@@ -316,3 +316,81 @@ describe('usePlaylist shuffle/repeat persistence', () => {
     expect(result.current.repeat).toBe(false)
   })
 })
+
+// Regression tests for two unhandled-rejection / ghost-playback bugs:
+// - playIndex used to let loadFile's rejection escape; every caller is
+//   fire-and-forget (void playIndex(...)), so a corrupt queued file leaked
+//   an unhandled promise rejection on every navigation attempt.
+// - clear() used to empty the queue without stopping playback, leaving a
+//   "ghost" video playing with hasMedia still true (home screen never came
+//   back) and an index of -1 pointing at nothing.
+describe('usePlaylist error handling', () => {
+  it('playIndex swallows a loadFile rejection (no unhandled rejection, index not committed)', async () => {
+    // The first load (append's auto-play of index 0) succeeds; the second
+    // file is corrupt and its load rejects.
+    let call = 0
+    const loadFile = vi.fn(async () => {
+      call++
+      if (call === 2) throw new Error('corrupt file')
+    })
+    const onError = vi.fn()
+    const { result } = renderHook(() =>
+      usePlaylist({ ready: true, loadFile, onError }),
+    )
+    await act(async () => {
+      result.current.append(['/videos/good.mkv', '/videos/bad.mkv'])
+    })
+    // The first file (good.mkv) loaded fine; the queue has 2 entries and
+    // currentIndex is 0.
+    expect(result.current.currentIndex).toBe(0)
+
+    // playIndex(1) hits the corrupt file: loadFile rejects, playIndex
+    // must catch it and leave currentIndex at 0 (not commit the ghost).
+    await act(async () => {
+      await result.current.playIndex(1)
+    })
+    expect(result.current.currentIndex).toBe(0)
+  })
+
+  it('playNext does not throw when the next file fails to load', async () => {
+    let call = 0
+    const loadFile = vi.fn(async () => {
+      call++
+      if (call === 2) throw new Error('corrupt file')
+    })
+    const { result } = renderHook(() =>
+      usePlaylist({ ready: true, loadFile, onError: vi.fn() }),
+    )
+    await act(async () => {
+      result.current.append(['/videos/a.mkv', '/videos/bad.mkv'])
+    })
+    // playNext is fire-and-forget internally (void playIndex); the
+    // rejection must be swallowed inside playIndex, not propagate.
+    await act(async () => {
+      result.current.playNext()
+      // Let the microtask queue drain so any unhandled rejection would
+      // surface before the assertion.
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    // Index stays at 0 because the load of bad.mkv failed.
+    expect(result.current.currentIndex).toBe(0)
+  })
+
+  it('clear() stops playback (no ghost video after emptying the queue)', async () => {
+    const stopPlayback = vi.fn(async () => {})
+    const { result } = renderHook(() =>
+      usePlaylist({ ready: true, loadFile: vi.fn(async () => {}), stopPlayback, onError: vi.fn() }),
+    )
+    await act(async () => {
+      result.current.append(['/videos/a.mkv', '/videos/b.mkv'])
+    })
+    expect(result.current.queue).toHaveLength(2)
+
+    await act(async () => {
+      result.current.clear()
+    })
+    expect(result.current.queue).toHaveLength(0)
+    expect(result.current.currentIndex).toBe(-1)
+    expect(stopPlayback).toHaveBeenCalledTimes(1)
+  })
+})

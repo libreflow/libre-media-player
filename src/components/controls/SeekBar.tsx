@@ -82,7 +82,15 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
           onSeekChange(v)
         }}
         onMouseUp={(e) => onSeekCommit(Number(e.currentTarget.value))}
-        onKeyUp={(e) => onSeekCommit(Number(e.currentTarget.value))}
+        // onKeyUp only commits when a change actually happened (a real
+        // keyboard drag: onChange fired and set seekingRef). When the
+        // global arrow-key shortcut preventDefault'ed the keydown, no
+        // onChange ran and seekingRef is still false -- committing here
+        // would send a STALE absolute seek that cancels the relative seek
+        // the shortcut just issued.
+        onKeyUp={(e) => {
+          if (seekingRef.current) onSeekCommit(Number(e.currentTarget.value))
+        }}
         onTouchEnd={(e) => onSeekCommit(Number(e.currentTarget.value))}
       />
       <span className="time">{formatTime(duration)}</span>

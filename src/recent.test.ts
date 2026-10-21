@@ -35,6 +35,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 }))
 
 import {
+  __resetRecentCacheForTests,
   addRecentFile,
   clearRecentFiles,
   loadRecentFiles,
@@ -47,6 +48,9 @@ const B = 'C:/movies/b.mkv'
 
 beforeEach(() => {
   memory.clear()
+  // The recent module caches the list + path at module level; reset them
+  // so each test starts from a clean slate (no leak from a previous test).
+  __resetRecentCacheForTests()
   // Files recorded by addRecentFile must "exist" for pruneRecentFiles.
   memory.set(A, '')
   memory.set(B, '')

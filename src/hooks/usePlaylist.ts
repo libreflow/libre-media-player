@@ -76,7 +76,17 @@ export function usePlaylist(opts: {
       // Only commit the index once the file actually loads -- a corrupt
       // file used to leave the queue pointing at an unplayable "ghost"
       // item, breaking prev/next navigation and EOF auto-advance.
-      await loadFileRef.current(item.path)
+      try {
+        await loadFileRef.current(item.path)
+      } catch {
+        // loadFileInner already surfaced the error via player.error
+        // (setError + re-throw). Swallow the rejection here: every caller
+        // of playIndex is fire-and-forget (void playIndex(...) in
+        // playNext/playPrevious/removeAt/append, onPlay in the panel), so
+        // without this catch a corrupt queued file leaks an unhandled
+        // promise rejection on every navigation attempt.
+        return
+      }
       if (queueRef.current[index] === item) setCurrentIndex(index)
     },
     [],
@@ -165,11 +175,15 @@ export function usePlaylist(opts: {
     }
   }, [playIndex])
 
+  // Clearing the queue also stops playback (VLC behavior): without
+  // stopPlayback the video kept playing with an empty queue -- a "ghost"
+  // playback with hasMedia still true, so the home screen never reappeared.
   const clear = useCallback(() => {
     queueRef.current = []
     indexRef.current = -1
     setQueue([])
     setCurrentIndex(-1)
+    void stopPlaybackRef.current?.()
   }, [])
 
   // Auto-advance when the current file reaches EOF. The plugin emits every

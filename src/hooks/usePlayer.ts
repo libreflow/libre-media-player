@@ -39,6 +39,9 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
   togglePause: () => void
   setVolume: (v: number) => void
   stopPlayback: () => Promise<void>
+  // Re-runs mpv init after a failure (clears the rejected init promise).
+  // Exposed so the UI can offer a "Réessayer" button on the error banner.
+  retryInit: () => void
 } {
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -59,6 +62,15 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
   // Guards against StrictMode's double-mount racing two concurrent init()
   // calls against an mpv instance that only tolerates one.
   const initPromiseRef = useRef<Promise<unknown> | null>(null)
+  // Cancellation signal + observeProperties unlisten for the CURRENT init
+  // cycle. doInit stores the unlisten here once observeProperties resolves
+  // so the effect cleanup (and retryInit) can always tear it down, even if
+  // the component unmounts while observeProperties is still in flight.
+  const initSignalRef = useRef<{ cancelled: boolean } | null>(null)
+  const observeUnlistenRef = useRef<(() => void) | null>(null)
+  // Resolver for the current readiness promise, stored in a ref so
+  // retryInit can resolve it after a successful re-init.
+  const readyResolveRef = useRef<(() => void) | null>(null)
   // Full path of the currently loaded file, as passed to loadFile -- NOT
   // the same as `filename` (mpv's observed 'filename' property is just the
   // basename, which is ambiguous as a resume-map key across directories).
@@ -101,78 +113,109 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
   const onFileLoadedRef = useRef(onFileLoaded)
   onFileLoadedRef.current = onFileLoaded
 
-  // Initialize mpv once, embedded in this window.
-  useEffect(() => {
-    let unlisten: (() => void) | undefined
-    let cancelled = false
-    let resolveReady: (() => void) | undefined
+  // Initialize mpv once, embedded in this window. The effect body is
+  // extracted into a retryable `doInit` so a failed init (missing libmpv
+  // DLL, GPU init error, ...) can be retried by the user instead of
+  // leaving the app stuck on the error banner forever.
+  const doInit = useCallback(async (signal: { cancelled: boolean }) => {
+    // Reuse the in-flight (or completed) init across StrictMode's
+    // unmount/remount cycle instead of calling init() twice.
+    if (!initPromiseRef.current) {
+      initPromiseRef.current = init({
+        initialOptions: {
+          vo: 'gpu-next',
+          hwdec: 'auto-safe',
+          'keep-open': 'always',
+          'force-window': 'yes',
+        },
+        observedProperties: OBSERVED_PROPERTIES,
+      })
+    }
+    await initPromiseRef.current
+    if (signal.cancelled) return
+    const unlisten = await observeProperties(OBSERVED_PROPERTIES, (event) => {
+      switch (event.name) {
+        case 'pause':
+          pausedRef.current = event.data
+          setPaused(event.data)
+          // Checkpoint immediately on pause -- the user stopping to
+          // step away is exactly the moment a resume point matters
+          // most, don't wait for the next periodic tick.
+          if (event.data) void resume.checkpoint()
+          break
+        case 'time-pos':
+          resume.track({ timePos: event.data })
+          if (!seekingRef.current) setTimePos(event.data)
+          break
+        case 'duration':
+          resume.track({ duration: event.data })
+          setDuration(event.data)
+          break
+        case 'filename':
+          setFilename(event.data)
+          break
+        case 'volume':
+          setVolumeState(event.data)
+          break
+      }
+    })
+    if (signal.cancelled) {
+      unlisten()
+      return
+    }
+    observeUnlistenRef.current = unlisten
+    // Restore the persisted volume once the player is up (mpv's own
+    // default is 100 and would otherwise override the saved value).
+    try {
+      const { volume: saved } = await loadSettings()
+      await setProperty('volume', saved)
+      setVolumeState(saved)
+    } catch {
+      // best-effort; default volume (100) stays
+    }
+    if (signal.cancelled) return
+    setError(null)
+    setReady(true)
+    readyRef.current = true
+    readyResolveRef.current?.()
+    readyResolveRef.current = null
+  }, [resume])
+
+  // Manual retry after a failed init: clears the cached init promise (the
+  // old one already rejected, keeping it would make every retry await the
+  // same rejection) and re-runs doInit.
+  const retryInit = useCallback(() => {
+    initPromiseRef.current = null
+    setError(null)
+    setReady(false)
+    readyRef.current = false
+    const signal = { cancelled: false }
+    initSignalRef.current = signal
     readyPromiseRef.current = new Promise<void>((resolve) => {
-      resolveReady = resolve
+      readyResolveRef.current = resolve
+    })
+    void doInit(signal).catch((e) => {
+      if (signal.cancelled) return
+      setError(`Échec d'initialisation du lecteur : ${String(e)}`)
+    })
+  }, [doInit])
+
+  useEffect(() => {
+    readyPromiseRef.current = new Promise<void>((resolve) => {
+      readyResolveRef.current = resolve
+    })
+    const signal = { cancelled: false }
+    initSignalRef.current = signal
+
+    void doInit(signal).catch((e) => {
+      if (signal.cancelled) return
+      setError(`Échec d'initialisation du lecteur : ${String(e)}`)
     })
 
-    ;(async () => {
-      try {
-        // Reuse the in-flight (or completed) init across StrictMode's
-        // unmount/remount cycle instead of calling init() twice.
-        if (!initPromiseRef.current) {
-          initPromiseRef.current = init({
-            initialOptions: {
-              vo: 'gpu-next',
-              hwdec: 'auto-safe',
-              'keep-open': 'always',
-              'force-window': 'yes',
-            },
-            observedProperties: OBSERVED_PROPERTIES,
-          })
-        }
-        await initPromiseRef.current
-        if (cancelled) return
-        unlisten = await observeProperties(OBSERVED_PROPERTIES, (event) => {
-          switch (event.name) {
-            case 'pause':
-              pausedRef.current = event.data
-              setPaused(event.data)
-              // Checkpoint immediately on pause -- the user stopping to
-              // step away is exactly the moment a resume point matters
-              // most, don't wait for the next periodic tick.
-              if (event.data) void resume.checkpoint()
-              break
-            case 'time-pos':
-              resume.track({ timePos: event.data })
-              if (!seekingRef.current) setTimePos(event.data)
-              break
-            case 'duration':
-              resume.track({ duration: event.data })
-              setDuration(event.data)
-              break
-            case 'filename':
-              setFilename(event.data)
-              break
-            case 'volume':
-              setVolumeState(event.data)
-              break
-          }
-        })
-        // Restore the persisted volume once the player is up (mpv's own
-        // default is 100 and would otherwise override the saved value).
-        try {
-          const { volume: saved } = await loadSettings()
-          await setProperty('volume', saved)
-          setVolumeState(saved)
-        } catch {
-          // best-effort; default volume (100) stays
-        }
-        setReady(true)
-        readyRef.current = true
-        resolveReady?.()
-      } catch (e) {
-        setError(`Échec d'initialisation du lecteur : ${String(e)}`)
-      }
-    })()
-
     return () => {
-      cancelled = true
-      unlisten?.()
+      signal.cancelled = true
+      observeUnlistenRef.current?.()
+      observeUnlistenRef.current = null
       // Only destroy when init actually completed; otherwise a StrictMode
       // double-mount would call destroy() on an uninitialized player.
       if (readyRef.current) {
@@ -181,7 +224,7 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: resume's callbacks are stable (useCallback with [] deps)
-  }, [])
+  }, [doInit])
 
   // The control bar used to reserve a bottom video margin via
   // setVideoMarginRatio so the picture never sat under it -- but that
@@ -362,5 +405,6 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
     togglePause,
     setVolume,
     stopPlayback,
+    retryInit,
   }
 }

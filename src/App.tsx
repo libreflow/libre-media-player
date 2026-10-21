@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { command } from 'tauri-plugin-libmpv-api'
 import { usePlayer } from './hooks/usePlayer'
 import { useKeyboardShortcuts, useFullscreen, useControlsVisibility } from './hooks/useShortcuts'
@@ -83,6 +83,12 @@ function App() {
     seekOsdTimerRef.current = setTimeout(() => setSeekOsd(null), SEEK_OSD_MS)
   }, [player.timePos])
 
+  // Clear the OSD timer on unmount so it never fires setState on a
+  // destroyed tree (StrictMode double-mount in dev).
+  useEffect(() => () => {
+    if (seekOsdTimerRef.current) clearTimeout(seekOsdTimerRef.current)
+  }, [])
+
   useKeyboardShortcuts({
     hasMedia,
     volume: player.volume,
@@ -113,7 +119,19 @@ function App() {
       onClick={hasMedia ? player.togglePause : undefined}
       onDoubleClick={hasMedia ? toggleFullscreen : undefined}
     >
-      {errorToDisplay && <div className="error-banner error-banner--overlay">{errorToDisplay}</div>}
+      {errorToDisplay && (
+        <div className="error-banner error-banner--overlay">
+          {errorToDisplay}
+          {/* Init failure is retryable: a transient error (libmpv DLL not
+              yet extracted, GPU init hiccup) used to leave the app stuck on
+              this banner until restart. The retry button re-runs mpv init. */}
+          {!player.ready && player.error && (
+            <button type="button" className="error-banner__retry" onClick={(e) => { e.stopPropagation(); player.retryInit() }}>
+              Réessayer
+            </button>
+          )}
+        </div>
+      )}
       {seekOsd && hasMedia && (
         <div className="seek-osd" key={seekOsd.delta + String(seekOsd.at)}>
           {seekOsd.delta > 0 ? `+${seekOsd.delta}s` : `${seekOsd.delta}s`}
@@ -213,8 +231,16 @@ function App() {
         onSelectSubtrack={(id) => void subtitles.selectSubtrack(id)}
         onDisableSubtitles={() => void subtitles.disableSubtitles()}
         onSelectAudioTrack={(id) => void subtitles.selectAudioTrack(id)}
-        hasNext={playlist.currentIndex < playlist.queue.length - 1}
-        hasPrevious={playlist.currentIndex > 0}
+        // With repeat or shuffle active, next/previous wrap around (see
+        // usePlaylist's playNext/playPrevious), so the buttons must stay
+        // enabled even at the queue's edges -- otherwise the UI says
+        // "no next" while the 'n' key still advances.
+        hasNext={
+          playlist.currentIndex < playlist.queue.length - 1 ||
+          playlist.repeat ||
+          (playlist.shuffle && playlist.queue.length > 1)
+        }
+        hasPrevious={playlist.currentIndex > 0 || (playlist.repeat && playlist.queue.length > 0)}
         onPlayNext={playlist.playNext}
         onPlayPrevious={playlist.playPrevious}
         onOpenFile={() => void openFile()}

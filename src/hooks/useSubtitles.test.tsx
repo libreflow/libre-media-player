@@ -70,3 +70,66 @@ describe('useSubtitles visible state with sid=no', () => {
     expect(result.current.visible).toBe(false)
   })
 })
+
+// Regression test: onFileLoaded is async and fire-and-forget from
+// usePlayer, so two rapid file switches (next/prev spam) can interleave.
+// Without a sequence guard, the OLDER call's late-resolving sidecar
+// discovery would overwrite the NEWER file's subtitle state (wrong
+// sidecar loaded into mpv, wrong visible/available flags). The fix: a
+// monotonic sequence number -- any await point that finds a newer
+// sequence bails without touching state.
+describe('useSubtitles onFileLoaded out-of-order guard', () => {
+  it('a stale (slower) onFileLoaded does not overwrite the newer file\'s state', async () => {
+    // findSidecarSubtitle probes many candidate paths in parallel via
+    // exists(). We make A's probes hang (manual promise) and B's resolve
+    // immediately, so A's onFileLoaded is still awaiting when B's runs.
+    let resolveA: (() => void) | null = null
+    const aGate = new Promise<void>((r) => { resolveA = r })
+    const fsMock = await import('@tauri-apps/plugin-fs')
+    vi.mocked(fsMock.exists).mockImplementation(async (p: string | URL) => {
+      const s = String(p)
+      if (s.includes('/a.')) {
+        await aGate // A's sidecar discovery hangs until we release it
+        return false // A has no sidecar after all
+      }
+      if (s.includes('/b.')) return true // B has a sidecar
+      return false
+    })
+
+    // B has a sidecar, so onFileLoaded(B) calls loadSubtitle + setVisible.
+    // Track the loadSubtitle command to know B's sidecar was loaded.
+    const { command } = await import('tauri-plugin-libmpv-api')
+    const commandMock = vi.mocked(command)
+    commandMock.mockClear()
+
+    const { result } = renderHook(() => useSubtitles())
+
+    // Start A's onFileLoaded (its sidecar probe hangs).
+    const aDone = result.current.onFileLoaded('/tmp/a.mkv')
+    // Let A reach the await findSidecarSubtitle(...) point.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    // Start B's onFileLoaded while A is still pending. B has a sidecar.
+    await act(async () => {
+      await result.current.onFileLoaded('/tmp/b.mkv')
+    })
+    // B completed: its sidecar was loaded and subtitles shown.
+    expect(commandMock).toHaveBeenCalledWith('sub-add', expect.anything())
+    expect(result.current.visible).toBe(true)
+    const commandsAfterB = commandMock.mock.calls.length
+
+    // Release A's gate. A's onFileLoaded resumes but its sequence is
+    // stale (B started after A), so it must bail without touching state
+    // or issuing any further mpv command.
+    await act(async () => {
+      resolveA!()
+      await aDone
+    })
+    // No new sub-add from the stale A call.
+    expect(commandMock.mock.calls.length).toBe(commandsAfterB)
+    // B's visible state is untouched.
+    expect(result.current.visible).toBe(true)
+  })
+})

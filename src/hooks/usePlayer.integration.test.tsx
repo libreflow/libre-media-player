@@ -178,3 +178,50 @@ describe('usePlayer setVolume: debounced persistence', () => {
     }
   })
 })
+
+// Regression test: a failed mpv init used to leave the app stuck on the
+// error banner forever -- the init effect had [] deps and never re-ran,
+// and there was no way to retry. retryInit() clears the rejected init
+// promise and re-runs doInit, so a transient failure (libmpv DLL not yet
+// extracted, GPU init hiccup) is recoverable without restarting the app.
+describe('usePlayer retryInit after a failed init', () => {
+  it('recovers when init fails once then succeeds on retry', async () => {
+    const libmpv = await import('tauri-plugin-libmpv-api')
+    const initMock = libmpv.init as unknown as ReturnType<typeof vi.fn>
+    const original = initMock.getMockImplementation()
+
+    // First init rejects (transient failure), retry succeeds.
+    let calls = 0
+    initMock.mockImplementation(async () => {
+      calls++
+      if (calls === 1) throw new Error('libmpv not found')
+      return 'main'
+    })
+
+    const holder: { current: ReturnType<typeof usePlayer> | null } = { current: null }
+    function Harness() {
+      const player = usePlayer()
+      useEffect(() => {
+        holder.current = player
+      })
+      return null
+    }
+    render(<Harness />)
+
+    // The first init failed: ready is false and error is set.
+    await waitFor(() => expect(holder.current!.error).toContain('initialisation'))
+    expect(holder.current!.ready).toBe(false)
+
+    // Retry: clears the rejected promise and re-runs init, which now
+    // succeeds.
+    await act(async () => {
+      holder.current!.retryInit()
+    })
+    await waitFor(() => expect(holder.current!.ready).toBe(true))
+    expect(holder.current!.error).toBeNull()
+    expect(calls).toBe(2)
+
+    // Restore the original mock so later tests in this file are unaffected.
+    if (original) initMock.mockImplementation(original)
+  })
+})

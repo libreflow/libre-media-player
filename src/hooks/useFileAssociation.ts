@@ -69,7 +69,11 @@ export function useFileAssociation(opts: {
 
       if (cancelled) return
       unlisten = await listen<string>('open-file', (event) => {
-        void openWhenReady(event.payload)
+        // openWhenReady awaits loadFile, which re-throws after surfacing
+        // the error via player.error; catch here so a file forwarded by a
+        // second instance that turns out unreadable doesn't leak an
+        // unhandled rejection from this fire-and-forget listener.
+        void openWhenReady(event.payload).catch(() => {})
       })
     })()
 

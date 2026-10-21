@@ -197,6 +197,25 @@
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.error-banner__retry {
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.error-banner__retry:hover {
+  background: var(--color-accent-hover);
 }
 
 /* Arrow-key seek feedback (VLC-style OSD): centered pill showing the delta

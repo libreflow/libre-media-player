@@ -70,4 +70,30 @@ describe('SeekBar smoothing', () => {
     pressKey(input, 'ArrowRight')
     expect(onSeekCommit).toHaveBeenCalledWith(Number(input.value))
   })
+
+  // Regression test for the arrow-key double-seek: when the global
+  // keyboard shortcut preventDefault'ed the keydown, no onChange fired
+  // and seekingRef is still false. The old unconditional onKeyUp commit
+  // then sent an ABSOLUTE seek to the stale slider value, cancelling the
+  // relative seek the shortcut just issued -- arrow keys appeared dead
+  // whenever the seek bar had focus.
+  it('does NOT commit on keyup when no change happened (shortcut-handled arrow)', () => {
+    const seekingRef = { current: false }
+    const onSeekCommit = vi.fn()
+    const { container } = render(
+      <SeekBar
+        timePos={50}
+        duration={200}
+        seekingRef={seekingRef}
+        onSeekChange={() => {}}
+        onSeekCommit={onSeekCommit}
+        paused={false}
+      />,
+    )
+    const input = container.querySelector('input') as HTMLInputElement
+    // Simulate: keydown was preventDefault'ed by the global shortcut
+    // (no onChange, seekingRef untouched), then the key is released.
+    pressKey(input, 'ArrowRight')
+    expect(onSeekCommit).not.toHaveBeenCalled()
+  })
 })

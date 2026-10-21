@@ -24,6 +24,27 @@ interface ResumeEntry {
 type ResumeMap = Record<string, ResumeEntry>
 
 let cachedPath: string | null = null
+// In-memory cache of the resume map. Once loaded, every read hits the
+// cache and every write updates it before persisting, so concurrent
+// read-modify-write cycles (checkpoint interval + pause + file-switch
+// outgoing save) can no longer lose updates by reading a stale snapshot
+// from disk before a previous write landed.
+let cachedMap: ResumeMap | null = null
+// Serializes all map mutations + writes: a second saveResumePosition
+// chains behind the first instead of interleaving its read with the
+// first's write. Without this, two overlapping saves could each read the
+// pre-write map and the later write would clobber the earlier entry.
+let writeChain: Promise<void> = Promise.resolve()
+
+// Test-only escape hatch: the caches are module-level singletons, and
+// each test file runs in its own module registry -- but a test that
+// writes a corrupt file to disk then expects the next read to recover
+// needs the cache dropped so the read actually hits the (mocked) disk.
+export function __resetResumeCacheForTests(): void {
+  cachedMap = null
+  cachedPath = null
+  writeChain = Promise.resolve()
+}
 
 async function resumeFilePath(): Promise<string> {
   if (cachedPath) return cachedPath
@@ -36,17 +57,23 @@ async function resumeFilePath(): Promise<string> {
 }
 
 async function readResumeMap(): Promise<ResumeMap> {
+  if (cachedMap) return cachedMap
   try {
     const path = await resumeFilePath()
-    if (!(await exists(path))) return {}
+    if (!(await exists(path))) {
+      cachedMap = {}
+      return cachedMap
+    }
     const raw = await readTextFile(path)
     const parsed: unknown = JSON.parse(raw)
-    return typeof parsed === 'object' && parsed !== null ? (parsed as ResumeMap) : {}
+    cachedMap = typeof parsed === 'object' && parsed !== null ? (parsed as ResumeMap) : {}
+    return cachedMap
   } catch {
     // Corrupt/unreadable file is a normal, expected case (manual edit,
     // partial write from a crash) -- treat as "nothing remembered" rather
     // than surfacing an error to the user.
-    return {}
+    cachedMap = {}
+    return cachedMap
   }
 }
 
@@ -112,35 +139,45 @@ export async function getResumePosition(filePath: string): Promise<number | null
 // Best-effort save -- never throws into the caller. Losing a resume point
 // is a minor inconvenience, not a reason to interrupt playback or surface
 // an error banner.
+//
+// Serialized through writeChain: every save chains behind the previous
+// one, so the read-modify-write inside can never interleave with another
+// save's write and lose an entry (two overlapping saves used to each
+// read the pre-write map, and the later write clobbered the earlier one).
 export async function saveResumePosition(
   filePath: string,
   position: number,
   duration: number,
   tracks?: { sid?: string; aid?: string },
 ): Promise<void> {
-  try {
-    const map = await readResumeMap()
-    if (position < MIN_RESUMABLE_SECONDS || (duration > 0 && position / duration >= FINISHED_THRESHOLD)) {
-      // Clean up a stale entry once the file has been watched to the end,
-      // so re-opening it later starts fresh instead of re-seeking to 100%.
-      if (map[filePath]) {
-        delete map[filePath]
-        await writeResumeMap(map)
+  const run = writeChain.then(async () => {
+    try {
+      const map = await readResumeMap()
+      if (position < MIN_RESUMABLE_SECONDS || (duration > 0 && position / duration >= FINISHED_THRESHOLD)) {
+        // Clean up a stale entry once the file has been watched to the end,
+        // so re-opening it later starts fresh instead of re-seeking to 100%.
+        if (map[filePath]) {
+          delete map[filePath]
+          await writeResumeMap(map)
+        }
+        return
       }
-      return
+      const isNewEntry = map[filePath] == null
+      map[filePath] = {
+        position,
+        duration,
+        updatedAt: Date.now(),
+        ...(tracks?.sid != null && { sid: tracks.sid }),
+        ...(tracks?.aid != null && { aid: tracks.aid }),
+      }
+      // Prune only when the map grows (a new file started playing), not on
+      // every periodic checkpoint -- see prunedMap's NOTE above.
+      await writeResumeMap(isNewEntry ? await prunedMap(map) : map)
+    } catch {
+      // Disk full, permission error, etc. -- silently skip, see above.
     }
-    const isNewEntry = map[filePath] == null
-    map[filePath] = {
-      position,
-      duration,
-      updatedAt: Date.now(),
-      ...(tracks?.sid != null && { sid: tracks.sid }),
-      ...(tracks?.aid != null && { aid: tracks.aid }),
-    }
-    // Prune only when the map grows (a new file started playing), not on
-    // every periodic checkpoint -- see prunedMap's NOTE above.
-    await writeResumeMap(isNewEntry ? await prunedMap(map) : map)
-  } catch {
-    // Disk full, permission error, etc. -- silently skip, see above.
-  }
+  })
+  // Keep the chain alive even when a save fails.
+  writeChain = run.catch(() => {})
+  return run
 }

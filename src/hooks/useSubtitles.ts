@@ -25,6 +25,15 @@ export function useSubtitles(onError?: (msg: string) => void) {
   // The video path whose sidecar is currently loaded, so we don't re-add
   // the same sub track when the user merely toggles visibility.
   const loadedForRef = useRef<string | null>(null)
+  // Monotonic sequence number for onFileLoaded calls. onFileLoaded is
+  // async and fire-and-forget from usePlayer, so two rapid file switches
+  // (next/prev spam, multi-drop) can interleave: file A's sidecar
+  // discovery can resolve AFTER file B's, and without a sequence guard
+  // A's late result would overwrite B's subtitle state (wrong sidecar
+  // loaded into mpv, wrong visible/available flags). Each call captures
+  // its sequence; any await point that finds a newer sequence has been
+  // superseded and bails without touching state.
+  const loadSeqRef = useRef(0)
 
   // Refresh the track lists (sub + audio) for the currently loaded file.
   const refreshTracks = useCallback(async () => {
@@ -37,14 +46,21 @@ export function useSubtitles(onError?: (msg: string) => void) {
   }, [])
 
   const onFileLoaded = useCallback(async (videoPath: string) => {
+    const seq = ++loadSeqRef.current
+    // True when a newer onFileLoaded call has started, meaning this one's
+    // results are stale and must not touch state or mpv.
+    const superseded = () => seq !== loadSeqRef.current
     try {
       const sidecar = await findSidecarSubtitle(videoPath)
+      if (superseded()) return
       if (loadedForRef.current !== videoPath) {
         loadedForRef.current = videoPath
         if (sidecar) {
           setAvailable(true)
           await loadSubtitle(sidecar)
+          if (superseded()) return
           await setSubtitleVisible(true)
+          if (superseded()) return
           setVisible(true)
         } else {
           // No sidecar, but the container may embed sub tracks (MKV, MP4...).
@@ -52,15 +68,18 @@ export function useSubtitles(onError?: (msg: string) => void) {
           // the total track count (video + audio + subs), which is always
           // non-zero for any playable file.
           const subCount = await countSubtitleTracks()
+          if (superseded()) return
           setAvailable(subCount > 0)
           // isSubtitleActive (sid != no AND sub-visibility) rather than
           // sub-visibility alone: mpv keeps sub-visibility=yes with sid=no,
           // which left the button lit after "Désactivés" + reopen.
           setVisible(subCount > 0 ? await isSubtitleActive() : false)
+          if (superseded()) return
         }
       }
       await refreshTracks()
     } catch {
+      if (superseded()) return
       // Subtitle discovery is best-effort; never block playback on it.
       setAvailable(false)
       setVisible(false)

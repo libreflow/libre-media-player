@@ -64,7 +64,10 @@ export function useFilePicker(opts: {
             opts.onFilesDropped(videos)
           } else {
             const path = pickSupportedFile(paths)
-            if (path && opts.readyRef.current) void opts.loadFile(path)
+            // loadFile re-throws after surfacing the error via player.error;
+            // catch here so a dropped unreadable file doesn't leak an
+            // unhandled rejection from this fire-and-forget call site.
+            if (path && opts.readyRef.current) void opts.loadFile(path).catch(() => {})
           }
         }
       })

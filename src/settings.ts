@@ -22,6 +22,14 @@ const DEFAULTS: Settings = {
 }
 
 let cachedPath: string | null = null
+// In-memory cache of the settings object. Once loaded, every read hits
+// the cache and every write updates it, so concurrent updateSettings
+// calls (e.g. a debounced volume write racing a shuffle toggle) can no
+// longer lose an update by reading a stale snapshot from disk.
+let cachedSettings: Settings | null = null
+// Serializes all settings writes: a second updateSettings chains behind
+// the first instead of interleaving its read with the first's write.
+let writeChain: Promise<void> = Promise.resolve()
 
 async function settingsFilePath(): Promise<string> {
   if (cachedPath) return cachedPath
@@ -56,26 +64,43 @@ async function atomicWriteTextFile(path: string, contents: string): Promise<void
 // Best-effort read -- a corrupt/unreadable settings file is treated as
 // "all defaults" rather than an error (same policy as resume.json).
 export async function loadSettings(): Promise<Settings> {
+  if (cachedSettings) return cachedSettings
   try {
     const path = await settingsFilePath()
-    if (!(await exists(path))) return { ...DEFAULTS }
+    if (!(await exists(path))) {
+      cachedSettings = { ...DEFAULTS }
+      return cachedSettings
+    }
     const parsed: unknown = JSON.parse(await readTextFile(path))
-    if (typeof parsed !== 'object' || parsed === null) return { ...DEFAULTS }
-    return { ...DEFAULTS, ...(parsed as Partial<Settings>) }
+    if (typeof parsed !== 'object' || parsed === null) {
+      cachedSettings = { ...DEFAULTS }
+      return cachedSettings
+    }
+    cachedSettings = { ...DEFAULTS, ...(parsed as Partial<Settings>) }
+    return cachedSettings
   } catch {
-    return { ...DEFAULTS }
+    cachedSettings = { ...DEFAULTS }
+    return cachedSettings
   }
 }
 
 // Best-effort write -- losing settings is a minor inconvenience, never an
 // error banner.
 export async function saveSettings(settings: Settings): Promise<void> {
+  cachedSettings = settings
   const path = await settingsFilePath()
   await atomicWriteTextFile(path, JSON.stringify(settings, null, 2))
 }
 
 // Merge-style update: persists a partial change without clobbering the
 // keys the caller didn't touch (saveSettings writes the whole file).
+// Serialized through writeChain so concurrent updates (debounced volume +
+// shuffle toggle) can't lose one of them by reading a pre-write snapshot.
 export async function updateSettings(patch: Partial<Settings>): Promise<void> {
-  await saveSettings({ ...(await loadSettings()), ...patch })
+  const run = writeChain.then(async () => {
+    await saveSettings({ ...(await loadSettings()), ...patch })
+  })
+  // Keep the chain alive even when a write fails.
+  writeChain = run.catch(() => {})
+  return run
 }

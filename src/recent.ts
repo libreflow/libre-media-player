@@ -20,6 +20,20 @@ export interface RecentEntry {
 type RecentList = RecentEntry[]
 
 let cachedPath: string | null = null
+// In-memory cache of the recents list + a write chain serializing every
+// read-modify-write, so a prune at mount racing an addRecentFile (or two
+// rapid opens) can't lose an entry by reading a pre-write snapshot.
+let cachedList: RecentList | null = null
+let writeChain: Promise<void> = Promise.resolve()
+
+// Test-only escape hatch: drops the module-level caches so the next read
+// hits the (mocked) disk again. Tests share one module registry per file,
+// so without this the first test's writes leak into every later test.
+export function __resetRecentCacheForTests(): void {
+  cachedList = null
+  cachedPath = null
+  writeChain = Promise.resolve()
+}
 
 async function recentFilePath(): Promise<string> {
   if (cachedPath) return cachedPath
@@ -32,8 +46,10 @@ async function recentFilePath(): Promise<string> {
 }
 
 // Atomic write (same rationale as settings.ts): temp file + rename so a
-// crash mid-write can't corrupt recent.json.
+// crash mid-write can't corrupt recent.json. Updates the in-memory cache
+// so subsequent reads never see a stale list.
 async function writeRecentList(list: RecentList): Promise<void> {
+  cachedList = list
   const path = await recentFilePath()
   const tmpPath = `${path}.tmp`
   const contents = JSON.stringify(list)
@@ -51,22 +67,39 @@ async function writeRecentList(list: RecentList): Promise<void> {
 
 // Best-effort read -- corrupt/unreadable file means "no recents".
 export async function loadRecentFiles(): Promise<RecentList> {
+  if (cachedList) return cachedList
   try {
     const path = await recentFilePath()
-    if (!(await exists(path))) return []
+    if (!(await exists(path))) {
+      cachedList = []
+      return cachedList
+    }
     const parsed: unknown = JSON.parse(await readTextFile(path))
-    if (!Array.isArray(parsed)) return []
+    if (!Array.isArray(parsed)) {
+      cachedList = []
+      return cachedList
+    }
     // Tolerate older/partial entries: keep only well-formed ones.
-    return parsed.filter(
+    cachedList = parsed.filter(
       (e): e is RecentEntry =>
         typeof e === 'object' &&
         e !== null &&
         typeof (e as RecentEntry).path === 'string' &&
         typeof (e as RecentEntry).name === 'string',
     )
+    return cachedList
   } catch {
-    return []
+    cachedList = []
+    return cachedList
   }
+}
+
+// Serializes every list mutation + write through writeChain, so a prune
+// racing an add (or two rapid adds) can't lose an entry.
+function enqueueWrite(op: () => Promise<RecentList>): Promise<RecentList> {
+  const run = writeChain.then(op)
+  writeChain = run.then(() => undefined, () => undefined)
+  return run
 }
 
 // Adds (or re-adds) a file at the top of the recents list, deduplicated by
@@ -74,13 +107,15 @@ export async function loadRecentFiles(): Promise<RecentList> {
 // strictly best-effort and must not interrupt playback.
 export async function addRecentFile(path: string, name: string): Promise<RecentList> {
   try {
-    const list = await loadRecentFiles()
-    const next: RecentList = [
-      { path, name, openedAt: Date.now() },
-      ...list.filter((e) => e.path !== path),
-    ].slice(0, MAX_RECENT_FILES)
-    await writeRecentList(next)
-    return next
+    return await enqueueWrite(async () => {
+      const list = await loadRecentFiles()
+      const next: RecentList = [
+        { path, name, openedAt: Date.now() },
+        ...list.filter((e) => e.path !== path),
+      ].slice(0, MAX_RECENT_FILES)
+      await writeRecentList(next)
+      return next
+    })
   } catch {
     return []
   }
@@ -91,19 +126,21 @@ export async function addRecentFile(path: string, name: string): Promise<RecentL
 // throws keeps the entry (same policy as resume.ts's prunedMap).
 export async function pruneRecentFiles(): Promise<RecentList> {
   try {
-    const list = await loadRecentFiles()
-    const kept = await Promise.all(
-      list.map(async (entry) => {
-        try {
-          return (await exists(entry.path)) ? entry : null
-        } catch {
-          return entry
-        }
-      }),
-    )
-    const next = kept.filter((e): e is RecentEntry => e !== null)
-    if (next.length !== list.length) await writeRecentList(next)
-    return next
+    return await enqueueWrite(async () => {
+      const list = await loadRecentFiles()
+      const kept = await Promise.all(
+        list.map(async (entry) => {
+          try {
+            return (await exists(entry.path)) ? entry : null
+          } catch {
+            return entry
+          }
+        }),
+      )
+      const next = kept.filter((e): e is RecentEntry => e !== null)
+      if (next.length !== list.length) await writeRecentList(next)
+      return next
+    })
   } catch {
     return []
   }
@@ -111,7 +148,10 @@ export async function pruneRecentFiles(): Promise<RecentList> {
 
 export async function clearRecentFiles(): Promise<void> {
   try {
-    await writeRecentList([])
+    await enqueueWrite(async () => {
+      await writeRecentList([])
+      return []
+    })
   } catch {
     // Best-effort.
   }
