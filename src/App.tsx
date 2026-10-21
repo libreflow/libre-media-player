@@ -73,7 +73,9 @@ function App() {
   const [seekOsd, setSeekOsd] = useState<{ delta: number; at: number | null } | null>(null)
   const seekOsdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const seekBy = useCallback((delta: number) => {
-    void command('seek', [delta, 'relative'])
+    // Fire-and-forget, but swallow rejections: a failed seek (e.g. mpv busy)
+    // must not surface as an unhandled rejection.
+    void command('seek', [delta, 'relative']).catch(() => {})
     // mpv reports the new time-pos through the property observer, but it
     // can lag a tick behind the keypress; show the delta immediately so
     // the OSD never feels unresponsive. The absolute position follows on
@@ -105,9 +107,13 @@ function App() {
   })
 
   const onSeekCommit = useCallback((t: number) => {
-    void command('seek', [t, 'absolute']).finally(() => {
-      player.seekingRef.current = false
-    })
+    // .finally does not handle a rejection -- append .catch so a failed
+    // commit seek never becomes an unhandled rejection.
+    void command('seek', [t, 'absolute'])
+      .finally(() => {
+        player.seekingRef.current = false
+      })
+      .catch(() => {})
   }, [player.seekingRef])
 
   const errorToDisplay = error ?? player.error

@@ -36,14 +36,25 @@ export function useSubtitles(onError?: (msg: string) => void) {
   const loadSeqRef = useRef(0)
 
   // Refresh the track lists (sub + audio) for the currently loaded file.
-  const refreshTracks = useCallback(async () => {
-    try {
-      setSubTracks(await subtitleTracks())
-      setAudio(await audioTracks())
-    } catch {
-      // Track listing is best-effort (e.g. no file loaded yet).
-    }
-  }, [])
+  // `isStale` lets onFileLoaded pass its sequence guard so a refresh that
+  // outlives a newer file load never overwrites the newer file's track
+  // lists (each getTracks call is several sequential mpv IPC round-trips,
+  // so a newer onFileLoaded can easily start while this one is pending).
+  const refreshTracks = useCallback(
+    async (isStale?: () => boolean) => {
+      try {
+        const subs = await subtitleTracks()
+        if (isStale?.()) return
+        const audio = await audioTracks()
+        if (isStale?.()) return
+        setSubTracks(subs)
+        setAudio(audio)
+      } catch {
+        // Track listing is best-effort (e.g. no file loaded yet).
+      }
+    },
+    [],
+  )
 
   const onFileLoaded = useCallback(async (videoPath: string) => {
     const seq = ++loadSeqRef.current
@@ -54,7 +65,6 @@ export function useSubtitles(onError?: (msg: string) => void) {
       const sidecar = await findSidecarSubtitle(videoPath)
       if (superseded()) return
       if (loadedForRef.current !== videoPath) {
-        loadedForRef.current = videoPath
         if (sidecar) {
           setAvailable(true)
           await loadSubtitle(sidecar)
@@ -73,11 +83,22 @@ export function useSubtitles(onError?: (msg: string) => void) {
           // isSubtitleActive (sid != no AND sub-visibility) rather than
           // sub-visibility alone: mpv keeps sub-visibility=yes with sid=no,
           // which left the button lit after "Désactivés" + reopen.
-          setVisible(subCount > 0 ? await isSubtitleActive() : false)
+          const active = subCount > 0 ? await isSubtitleActive() : false
           if (superseded()) return
+          setVisible(active)
         }
+        // Only mark the sidecar as loaded once every mpv call above has
+        // succeeded AND this call is still the latest. Setting it earlier
+        // (before the awaits) let a superseded call bail out while a second
+        // load of the SAME path saw loadedForRef === path and skipped the
+        // sidecar entirely -- no subtitle ever loaded.
+        loadedForRef.current = videoPath
       }
-      await refreshTracks()
+      // refreshTracks issues several sequential mpv IPC calls (~40ms for a
+      // multi-track file); a newer onFileLoaded can start while this await
+      // is pending and would be overwritten by the stale result. Pass the
+      // sequence guard down so the refresh bails before committing state.
+      await refreshTracks(superseded)
     } catch {
       if (superseded()) return
       // Subtitle discovery is best-effort; never block playback on it.

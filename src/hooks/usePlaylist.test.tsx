@@ -32,6 +32,20 @@ vi.mock('tauri-plugin-libmpv-api', () => ({
 
 import { usePlaylist } from './usePlaylist'
 
+// Vitest prints unhandled rejections but does not fail the test for them
+// in this setup, so a bare `void rejectingPromise()` would pass silently.
+// This module-level listener captures every unhandled rejection in this
+// file so the N5 tests can assert the counter did not grow.
+//
+// The listener must be attached BEFORE the first test runs (module scope,
+// not inside a test body): vitest's own unhandled-rejection handler is
+// installed when the first test starts and marks rejections as handled
+// before a listener added inside a test would see them.
+const unhandledRejections: unknown[] = []
+process.on('unhandledRejection', (reason: unknown) => {
+  unhandledRejections.push(reason)
+})
+
 function setup() {
   const loadFile = vi.fn(async () => {})
   const { result } = renderHook(() =>
@@ -392,5 +406,88 @@ describe('usePlaylist error handling', () => {
     expect(result.current.queue).toHaveLength(0)
     expect(result.current.currentIndex).toBe(-1)
     expect(stopPlayback).toHaveBeenCalledTimes(1)
+  })
+})
+
+// Regression tests (audit #2, N5): clear() and removeAt() call the injected
+// stopPlayback fire-and-forget (`void stopPlaybackRef.current?.()`). The
+// real stopPlayback awaits mpv's command('stop'), which rejects when mpv is
+// shutting down or already stopped -- and that rejection escaped as an
+// unhandled promise rejection on every queue clear / last-item removal.
+// Both call sites now wrap the call in Promise.resolve(...).catch(...).
+// The stopPlayback prop here is a PLAIN rejecting async fn (not a vi.fn):
+// vitest's mock wrapper swallows the process-level unhandledRejection
+// event, while a plain async fn fires it -- the assertion is only genuine
+// through a plain function.
+describe('usePlaylist fire-and-forget stopPlayback swallows rejections', () => {
+  it('clear() does not leak an unhandled rejection when stopPlayback rejects', async () => {
+    // Plain async fn: its rejection fires the process-level
+    // unhandledRejection event the counter above listens for.
+    const stopPlayback = async (): Promise<void> => {
+      throw new Error('mpv stop failed')
+    }
+    const { result } = renderHook(() =>
+      usePlaylist({ ready: true, loadFile: vi.fn(async () => {}), stopPlayback, onError: vi.fn() }),
+    )
+    await act(async () => {
+      result.current.append(['/videos/a.mkv', '/videos/b.mkv'])
+    })
+    expect(result.current.queue).toHaveLength(2)
+
+    const before = unhandledRejections.length
+    await act(async () => {
+      result.current.clear()
+    })
+    // The queue is cleared synchronously; the rejection settles async.
+    expect(result.current.queue).toHaveLength(0)
+    expect(result.current.currentIndex).toBe(-1)
+    // setTimeout(0) first: lets the rejection settle into the
+    // unhandledRejection event before the longer drain.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    expect(unhandledRejections.length).toBe(before)
+  })
+
+  it('removeAt of the last playing item does not leak an unhandled rejection when stopPlayback rejects', async () => {
+    const stopPlayback = async (): Promise<void> => {
+      throw new Error('mpv stop failed')
+    }
+    const { result } = renderHook(() =>
+      usePlaylist({ ready: true, loadFile: vi.fn(async () => {}), stopPlayback, onError: vi.fn() }),
+    )
+    await act(async () => {
+      result.current.append(['/videos/a.mkv'])
+    })
+    expect(result.current.currentIndex).toBe(0)
+
+    const before = unhandledRejections.length
+    await act(async () => {
+      result.current.removeAt(0)
+    })
+    expect(result.current.queue).toHaveLength(0)
+    expect(result.current.currentIndex).toBe(-1)
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    expect(unhandledRejections.length).toBe(before)
+  })
+
+  // Meta-test: proves the unhandledRejection listener above actually fires
+  // in this file's setup. Without it, a broken listener would make the two
+  // tests above vacuously green.
+  it('meta: the unhandledRejection listener fires in this file', async () => {
+    const rejecting = async (): Promise<void> => {
+      throw new Error('meta-probe')
+    }
+    const before = unhandledRejections.length
+    void rejecting()
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    expect(unhandledRejections.length).toBe(before + 1)
   })
 })
