@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { command } from 'tauri-plugin-libmpv-api'
 import { usePlayer } from './hooks/usePlayer'
 import { useKeyboardShortcuts, useFullscreen, useControlsVisibility } from './hooks/useShortcuts'
@@ -8,9 +8,13 @@ import { useSubtitles } from './hooks/useSubtitles'
 import { usePlaylist } from './hooks/usePlaylist'
 import { useRecentFiles } from './hooks/useRecentFiles'
 import { openDefaultAppsSettings } from './defaultApps'
+import { formatTime } from './utils'
 import { Controls } from './components/Controls'
 import { PlaylistPanel } from './components/PlaylistPanel'
 import './App.css'
+
+// How long the seek OSD stays on screen after an arrow-key seek.
+const SEEK_OSD_MS = 900
 
 function App() {
   const { showControls, onPointerActivity } = useControlsVisibility()
@@ -63,6 +67,22 @@ function App() {
 
   const hasMedia = player.filename != null
 
+  // On-screen display for arrow-key seeks: shows "+10s" / "-10s" with the
+  // resulting position, fading out after a short delay. Repeated presses
+  // within the window just restart the timer (and re-render the text).
+  const [seekOsd, setSeekOsd] = useState<{ delta: number; at: number | null } | null>(null)
+  const seekOsdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const seekBy = useCallback((delta: number) => {
+    void command('seek', [delta, 'relative'])
+    // mpv reports the new time-pos through the property observer, but it
+    // can lag a tick behind the keypress; show the delta immediately so
+    // the OSD never feels unresponsive. The absolute position follows on
+    // the next observer tick (player.timePos changes re-render below).
+    setSeekOsd({ delta, at: player.timePos != null ? player.timePos + delta : null })
+    if (seekOsdTimerRef.current) clearTimeout(seekOsdTimerRef.current)
+    seekOsdTimerRef.current = setTimeout(() => setSeekOsd(null), SEEK_OSD_MS)
+  }, [player.timePos])
+
   useKeyboardShortcuts({
     hasMedia,
     volume: player.volume,
@@ -74,6 +94,7 @@ function App() {
     playNext: playlist.playNext,
     playPrevious: playlist.playPrevious,
     togglePlaylist: () => playlist.setPanelOpen(!playlist.panelOpen),
+    seekBy,
     setVolume: player.setVolume,
   })
 
@@ -93,6 +114,12 @@ function App() {
       onDoubleClick={hasMedia ? toggleFullscreen : undefined}
     >
       {errorToDisplay && <div className="error-banner error-banner--overlay">{errorToDisplay}</div>}
+      {seekOsd && hasMedia && (
+        <div className="seek-osd" key={seekOsd.delta + String(seekOsd.at)}>
+          {seekOsd.delta > 0 ? `+${seekOsd.delta}s` : `${seekOsd.delta}s`}
+          {seekOsd.at != null && <span className="seek-osd__pos">{formatTime(seekOsd.at)}</span>}
+        </div>
+      )}
       {isDragOver && (
         <div className="drag-overlay">Déposer un fichier vidéo pour le lire</div>
       )}

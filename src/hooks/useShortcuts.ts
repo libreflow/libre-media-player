@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { command } from 'tauri-plugin-libmpv-api'
 import { MAX_VOLUME } from '../utils'
+
+// Seek step (seconds) for ArrowLeft/ArrowRight. 10s matches VLC's default
+// arrow seek; 5s felt too short to make progress on long videos.
+const SEEK_STEP = 10
 
 // Global keyboard shortcuts. Read current state via a single ref mirroring
 // `opts` (updated every render, like useFileAssociation's optsRef) rather
@@ -31,6 +34,9 @@ export function useKeyboardShortcuts(opts: {
   playNext: () => void
   playPrevious: () => void
   togglePlaylist: () => void
+  // Relative seek in seconds (negative = backward). Provided by the caller
+  // so the hook stays mpv-free and testable; the caller also shows the OSD.
+  seekBy: (delta: number) => void
   // Single volume path (same as the slider): updates React state + mpv AND
   // persists the value. The shortcuts used to setProperty('volume')
   // directly, which never ran updateSettings -- a keyboard-adjusted volume
@@ -47,8 +53,15 @@ export function useKeyboardShortcuts(opts: {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const opts = optsRef.current
-      // Don't hijack typing in a focused input (e.g. a future search box).
-      if (e.target instanceof HTMLInputElement) return
+      // Don't hijack typing in a focused text input (e.g. a future search
+      // box). Range sliders (seek bar, volume) are exempt: they keep focus
+      // after a click, and arrows must still seek/adjust the volume then --
+      // our preventDefault() below also cancels the slider's native arrow
+      // step, so the keypress does not move the slider AND seek at once.
+      if (
+        e.target instanceof HTMLInputElement &&
+        e.target.type !== 'range'
+      ) return
       // Let Space activate a focused button natively instead of also firing
       // the play/pause shortcut (double action on a single keypress).
       if (e.code === 'Space' && e.target instanceof HTMLButtonElement) return
@@ -98,13 +111,13 @@ export function useKeyboardShortcuts(opts: {
         case 'ArrowRight':
           if (opts.hasMedia) {
             e.preventDefault()
-            void command('seek', [5, 'relative'])
+            opts.seekBy(SEEK_STEP)
           }
           break
         case 'ArrowLeft':
           if (opts.hasMedia) {
             e.preventDefault()
-            void command('seek', [-5, 'relative'])
+            opts.seekBy(-SEEK_STEP)
           }
           break
         case 'ArrowUp':

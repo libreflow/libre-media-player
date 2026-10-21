@@ -2,11 +2,6 @@ import { act, cleanup, render } from '@testing-library/react'
 import { useCallback, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const setPropertyMock = vi.hoisted(() => vi.fn(async () => {}))
-vi.mock('tauri-plugin-libmpv-api', () => ({
-  setProperty: setPropertyMock,
-}))
-
 import { useKeyboardShortcuts } from './useShortcuts'
 
 // Regression test for a stale-closure bug: useKeyboardShortcuts used to
@@ -20,6 +15,17 @@ import { useKeyboardShortcuts } from './useShortcuts'
 // so the shortcut visibly worked once then appeared frozen.
 function press(key: string, code?: string) {
   window.dispatchEvent(new KeyboardEvent('keydown', { key, code: code ?? key }))
+}
+
+// Real keydown events originate at the FOCUSED element and bubble to
+// window, so e.target is the focused element -- not window. Dispatching
+// on window directly would make every e.target check see `window`.
+// Dispatch on document.activeElement to reproduce the real targeting.
+function pressFocused(key: string, code?: string) {
+  const target = document.activeElement ?? window
+  target.dispatchEvent(
+    new KeyboardEvent('keydown', { key, code: code ?? key, bubbles: true, cancelable: true }),
+  )
 }
 
 // jsdom's KeyboardEvent supports the `code` init property; the explicit
@@ -46,6 +52,7 @@ function Harness({ onSnapshot }: { onSnapshot: (s: { panelOpen: boolean }) => vo
     playNext: () => {},
     playPrevious: () => {},
     togglePlaylist: () => setPanelOpen(!panelOpen),
+    seekBy: () => {},
     setVolume: () => {},
   })
 
@@ -53,12 +60,15 @@ function Harness({ onSnapshot }: { onSnapshot: (s: { panelOpen: boolean }) => vo
   return null
 }
 
-describe('useKeyboardShortcuts', () => {
-  afterEach(() => {
-    cleanup()
-    vi.restoreAllMocks()
-  })
+// Shared cleanup for every describe below: render() mounts into the same
+// document.body, so without cleanup the sliders/inputs of one test leak
+// into the next and getByTestId finds duplicates.
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
 
+describe('useKeyboardShortcuts', () => {
   it('toggles the playlist panel ("l") repeatedly, not just once', () => {
     const snapshots: { panelOpen: boolean }[] = []
     render(<Harness onSnapshot={(s) => snapshots.push(s)} />)
@@ -92,6 +102,7 @@ describe('useKeyboardShortcuts', () => {
         playNext: () => {},
         playPrevious: () => {},
         togglePlaylist,
+        seekBy: () => {},
         setVolume: () => {},
       })
       return null
@@ -115,6 +126,7 @@ describe('useKeyboardShortcuts', () => {
         playNext: () => {},
         playPrevious: () => {},
         togglePlaylist,
+        seekBy: () => {},
         setVolume: () => {},
       })
       return null
@@ -142,6 +154,7 @@ describe('useKeyboardShortcuts', () => {
             playNext: () => {},
         playPrevious: () => {},
         togglePlaylist: () => {},
+        seekBy: () => {},
         setVolume: () => {},
       })
       return null
@@ -166,6 +179,7 @@ describe('useKeyboardShortcuts', () => {
             playNext: () => {},
         playPrevious: () => {},
         togglePlaylist,
+        seekBy: () => {},
         setVolume: () => {},
       })
       return null
@@ -191,6 +205,7 @@ describe('useKeyboardShortcuts', () => {
             playNext: () => {},
         playPrevious: () => {},
         togglePlaylist,
+        seekBy: () => {},
         setVolume: () => {},
       })
       return null
@@ -220,6 +235,7 @@ describe('volume shortcuts respect hasMedia', () => {
             playNext: () => {},
         playPrevious: () => {},
         togglePlaylist: () => {},
+        seekBy: () => {},
         setVolume,
       })
       return null
@@ -244,6 +260,7 @@ describe('volume shortcuts respect hasMedia', () => {
             playNext: () => {},
         playPrevious: () => {},
         togglePlaylist: () => {},
+        seekBy: () => {},
         setVolume,
       })
       return null
@@ -269,6 +286,7 @@ describe('volume shortcuts respect hasMedia', () => {
             playNext: () => {},
         playPrevious: () => {},
         togglePlaylist: () => {},
+        seekBy: () => {},
         setVolume,
       })
       return null
@@ -276,5 +294,145 @@ describe('volume shortcuts respect hasMedia', () => {
     render(<VolumeHarness />)
     act(() => press('ArrowUp'))
     expect(setVolume).toHaveBeenCalledWith(130)
+  })
+})
+
+// ArrowLeft/ArrowRight seek by +/-10s (VLC's step) via the injected seekBy
+// callback. The hook no longer calls mpv directly -- the caller owns the
+// command AND the OSD, which keeps this hook unit-testable.
+describe('arrow-key seeking', () => {
+  it('seeks forward 10s on ArrowRight and backward 10s on ArrowLeft', () => {
+    const seekBy = vi.fn()
+    function Harness() {
+      useKeyboardShortcuts({
+        hasMedia: true,
+        volume: 100,
+        isFullscreen: false,
+        isPlaylistOpen: false,
+        togglePause: () => {},
+        toggleFullscreen: () => {},
+        toggleSubtitles: () => {},
+        playNext: () => {},
+        playPrevious: () => {},
+        togglePlaylist: () => {},
+        seekBy,
+        setVolume: () => {},
+      })
+      return null
+    }
+    render(<Harness />)
+    act(() => press('ArrowRight'))
+    expect(seekBy).toHaveBeenCalledWith(10)
+    act(() => press('ArrowLeft'))
+    expect(seekBy).toHaveBeenCalledWith(-10)
+    expect(seekBy).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not seek when hasMedia is false', () => {
+    const seekBy = vi.fn()
+    function NoMediaHarness() {
+      useKeyboardShortcuts({
+        hasMedia: false,
+        volume: 100,
+        isFullscreen: false,
+        isPlaylistOpen: false,
+        togglePause: () => {},
+        toggleFullscreen: () => {},
+        toggleSubtitles: () => {},
+        playNext: () => {},
+        playPrevious: () => {},
+        togglePlaylist: () => {},
+        seekBy,
+        setVolume: () => {},
+      })
+      return null
+    }
+    render(<NoMediaHarness />)
+    act(() => press('ArrowRight'))
+    act(() => press('ArrowLeft'))
+    expect(seekBy).not.toHaveBeenCalled()
+  })
+
+  it('still seeks when a range slider (seek bar / volume) has focus', () => {
+    // After clicking the seek bar the slider keeps keyboard focus; the
+    // shortcuts must NOT stop working there (the old blanket
+    // HTMLInputElement guard ignored all sliders). The hook's
+    // preventDefault also cancels the slider's native arrow step so the
+    // keypress does not move the slider AND seek at the same time.
+    const seekBy = vi.fn()
+    const setVolume = vi.fn()
+    function SliderHarness() {
+      useKeyboardShortcuts({
+        hasMedia: true,
+        volume: 100,
+        isFullscreen: false,
+        isPlaylistOpen: false,
+        togglePause: () => {},
+        toggleFullscreen: () => {},
+        toggleSubtitles: () => {},
+        playNext: () => {},
+        playPrevious: () => {},
+        togglePlaylist: () => {},
+        seekBy,
+        setVolume,
+      })
+      return (
+        <div>
+          <input type="range" data-testid="seek" />
+          <input type="range" data-testid="vol" />
+          <input type="text" data-testid="text" />
+        </div>
+      )
+    }
+    const { getByTestId } = render(<SliderHarness />)
+
+    act(() => {
+      getByTestId('seek').focus()
+      pressFocused('ArrowRight')
+    })
+    expect(seekBy).toHaveBeenCalledWith(10)
+
+    act(() => {
+      getByTestId('vol').focus()
+      pressFocused('ArrowUp')
+    })
+    expect(setVolume).toHaveBeenCalledWith(105)
+
+    // Text inputs are still exempt: typing letters there must not fire
+    // letter shortcuts, and arrows are left to the caret.
+    act(() => {
+      getByTestId('text').focus()
+      pressFocused('ArrowRight')
+      pressFocused('k')
+    })
+    expect(seekBy).toHaveBeenCalledTimes(1)
+  })
+
+  it('prevents the default slider arrow behavior so it does not double-seek', () => {
+    function Harness() {
+      useKeyboardShortcuts({
+        hasMedia: true,
+        volume: 100,
+        isFullscreen: false,
+        isPlaylistOpen: false,
+        togglePause: () => {},
+        toggleFullscreen: () => {},
+        toggleSubtitles: () => {},
+        playNext: () => {},
+        playPrevious: () => {},
+        togglePlaylist: () => {},
+        seekBy: () => {},
+        setVolume: () => {},
+      })
+      return <input type="range" data-testid="seek" />
+    }
+    const { getByTestId } = render(<Harness />)
+    act(() => {
+      getByTestId('seek').focus()
+      const prevented = !document.activeElement!.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', bubbles: true, cancelable: true }),
+      )
+      expect(prevented).toBe(true)
+    })
   })
 })
