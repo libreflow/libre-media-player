@@ -35,7 +35,9 @@ struct InitialFile(Mutex<Option<String>>);
 // the file on that second request.
 #[tauri::command]
 fn get_initial_file(state: tauri::State<InitialFile>) -> Option<String> {
-    state.0.lock().unwrap().clone()
+    // A poisoned mutex (a panic while holding it elsewhere) must not take
+    // the whole IPC down -- report "no initial file" instead.
+    state.0.lock().ok().and_then(|g| g.clone())
 }
 
 // Opens Windows' Default Apps settings page, scoped directly to Libre Media

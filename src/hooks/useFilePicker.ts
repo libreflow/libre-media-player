@@ -11,7 +11,6 @@ export function useFilePicker(opts: {
   readyRef: React.MutableRefObject<boolean>
   loadFile: (path: string) => Promise<void>
   onFilesDropped?: (paths: string[]) => void
-  onFilePicked?: (path: string) => void
   onError: (msg: string) => void
 }) {
   const [isDragOver, setIsDragOver] = useState(false)
@@ -30,16 +29,12 @@ export function useFilePicker(opts: {
       const videos = (Array.isArray(paths) ? paths : [paths]).filter(hasVideoExtension)
       if (videos.length === 0) return
       // Route through the queue like drag-drop does, so picked file(s)
-      // get prev/next navigation too instead of playing "outside".
-      if (Array.isArray(paths)) {
-        if (opts.onFilesDropped) {
-          opts.onFilesDropped(videos)
-        } else if (videos[0]) {
-          await opts.loadFile(videos[0])
-        }
-      } else if (opts.onFilePicked) {
-        opts.onFilePicked(videos[0])
-      } else {
+      // get prev/next navigation too instead of playing "outside". The
+      // dialog always returns an array (multiple: true), so there is no
+      // single-path branch to keep.
+      if (opts.onFilesDropped) {
+        opts.onFilesDropped(videos)
+      } else if (videos[0]) {
         await opts.loadFile(videos[0])
       }
     } catch (e) {

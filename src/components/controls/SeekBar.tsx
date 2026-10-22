@@ -8,6 +8,7 @@ interface SeekBarProps {
   onSeekChange: (t: number) => void
   onSeekCommit: (t: number) => void
   paused: boolean
+  visible: boolean
 }
 
 // Smooth progress rendering. mpv reports time-pos on its internal ticks
@@ -17,7 +18,7 @@ interface SeekBarProps {
 // gliding bar like VLC/modern web players. Extrapolation stops while
 // paused, while the user is dragging (seekingRef), and when the video
 // hasn't started (timePos == null).
-export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCommit, paused }: SeekBarProps) {
+export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCommit, paused, visible }: SeekBarProps) {
   const [displayPos, setDisplayPos] = useState<number | null>(timePos)
   const timePosRef = useRef<number | null>(timePos)
   const pausedRef = useRef(paused)
@@ -39,9 +40,13 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
     setDisplayPos(timePos)
   }, [timePos, seekingRef])
 
-  // rAF loop: advance the displayed position between observer ticks.
+  // rAF loop: advance the displayed position between observer ticks. It
+  // only runs while the bar is actually on screen (the controls overlay is
+  // hidden during playback after the idle timeout) -- extrapolating a
+  // position nobody can see re-rendered this subtree at ~60fps for the
+  // entire duration of every video.
   useEffect(() => {
-    if (paused || timePos == null || duration == null || duration <= 0) return
+    if (!visible || paused || timePos == null || duration == null || duration <= 0) return
     let raf = 0
     let last = performance.now()
     const tick = (now: number) => {
@@ -58,7 +63,7 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [paused, timePos, duration, seekingRef])
+  }, [visible, paused, timePos, duration, seekingRef])
 
   const fillPercent = duration != null && duration > 0
     ? `${Math.min(100, Math.max(0, ((displayPos ?? 0) / duration) * 100))}%`

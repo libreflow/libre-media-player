@@ -22,6 +22,11 @@ function App() {
   const onError = useCallback((msg: string) => setError(msg), [])
   const subtitles = useSubtitles(onError)
   const player = usePlayer((path) => void subtitles.onFileLoaded(path))
+  const clearPlayerError = player.clearError
+  const dismissError = useCallback(() => {
+    setError(null)
+    clearPlayerError()
+  }, [clearPlayerError])
   const { isFullscreen, toggleFullscreen } = useFullscreen(onError)
   const { recents, recordOpened, openRecent, clear: clearRecents } = useRecentFiles({
     loadFile: player.loadFile,
@@ -39,16 +44,18 @@ function App() {
         recordOpened(path)
         return result
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: player.loadFile is stable (useCallback on the memoized resume object), recordOpened is []-deps; depending on the whole `player` object would churn this wrapper (and every effect keyed on it) on every mpv state tick.
     [player.loadFile, recordOpened],
   )
   const { isDragOver, openFile } = useFilePicker({
     readyRef: player.readyRef,
     loadFile,
+    // Single route for every multi-file entry point (dialog multi-pick and
+    // drag-drop alike): the queue, so picked files get prev/next navigation
+    // too. The dialog always returns an array (multiple: true), so one
+    // callback covers both.
     onFilesDropped: (paths) => {
       if (player.readyRef.current) playlist.append(paths)
-    },
-    onFilePicked: (path) => {
-      if (player.readyRef.current) playlist.append([path])
     },
     onError,
   })
@@ -126,7 +133,11 @@ function App() {
       onDoubleClick={hasMedia ? toggleFullscreen : undefined}
     >
       {errorToDisplay && (
-        <div className="error-banner error-banner--overlay">
+        <div
+          className="error-banner error-banner--overlay"
+          onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+        >
           {errorToDisplay}
           {/* Init failure is retryable: a transient error (libmpv DLL not
               yet extracted, GPU init hiccup) used to leave the app stuck on
@@ -136,6 +147,23 @@ function App() {
               Réessayer
             </button>
           )}
+          {/* A load failure doesn't invalidate the player -- let the user
+              dismiss the banner instead of waiting for the next successful
+              load to clear it. */}
+          <button
+            type="button"
+            className="error-banner__close"
+            aria-label="Fermer le message d'erreur"
+            title="Fermer"
+            onClick={(e) => {
+              e.stopPropagation()
+              dismissError()
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            </svg>
+          </button>
         </div>
       )}
       {seekOsd && hasMedia && (
@@ -262,6 +290,7 @@ function App() {
         seekingRef={player.seekingRef}
         timePos={player.timePos}
         duration={player.duration}
+        visible={showControls || !hasMedia}
       />
     </div>
   )

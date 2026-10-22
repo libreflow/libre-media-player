@@ -19,6 +19,8 @@
   --radius-sm: 4px;
   --radius-md: 8px;
 
+  --color-accent-bg: rgba(108, 75, 255, 0.12);
+
   --transition-fast: 0.15s ease;
 
   --controls-hide-delay: 2600ms;

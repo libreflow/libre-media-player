@@ -30,6 +30,7 @@ describe('SeekBar smoothing', () => {
         onSeekChange={() => {}}
         onSeekCommit={() => {}}
         paused
+        visible
       />,
     )
     const input = container.querySelector('input') as HTMLInputElement
@@ -47,6 +48,7 @@ describe('SeekBar smoothing', () => {
         onSeekChange={() => {}}
         onSeekCommit={() => {}}
         paused
+        visible
       />,
     )
     const input = container.querySelector('input') as HTMLInputElement
@@ -64,6 +66,7 @@ describe('SeekBar smoothing', () => {
         onSeekChange={() => {}}
         onSeekCommit={onSeekCommit}
         paused
+        visible
       />,
     )
     const input = container.querySelector('input') as HTMLInputElement
@@ -87,7 +90,8 @@ describe('SeekBar smoothing', () => {
         seekingRef={seekingRef}
         onSeekChange={() => {}}
         onSeekCommit={onSeekCommit}
-        paused={false}
+        paused
+        visible={false}
       />,
     )
     const input = container.querySelector('input') as HTMLInputElement
