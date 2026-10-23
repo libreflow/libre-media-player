@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions / discussions
+    url: https://github.com/libreflow/libre-media-player/discussions
+    about: Pour les questions d'utilisation, avant d'ouvrir une issue.
