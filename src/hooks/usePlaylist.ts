@@ -171,7 +171,11 @@ export function usePlaylist(opts: {
       void playIndex(index)
     } else {
       setCurrentIndex(-1)
-      void stopPlaybackRef.current?.()
+      // stopPlayback awaits command('stop') which can reject (mpv shutting
+      // down, already stopped) -- catch so this fire-and-forget call never
+      // leaks an unhandled rejection. Promise.resolve wraps the optional
+      // call so a sync-void stopPlayback still gets a uniform .catch.
+      void Promise.resolve(stopPlaybackRef.current?.()).catch(() => {})
     }
   }, [playIndex])
 
@@ -183,7 +187,8 @@ export function usePlaylist(opts: {
     indexRef.current = -1
     setQueue([])
     setCurrentIndex(-1)
-    void stopPlaybackRef.current?.()
+    // Same as removeAt: stopPlayback's command('stop') can reject -- catch.
+    void Promise.resolve(stopPlaybackRef.current?.()).catch(() => {})
   }, [])
 
   // Auto-advance when the current file reaches EOF. The plugin emits every
@@ -233,7 +238,9 @@ export function usePlaylist(opts: {
       (currentIndex < queue.length - 1 ||
         (repeat && queue.length > 0) ||
         (shuffle && queue.length > 1))
-    void command('set_property', ['keep-open', hasNext ? 'no' : 'always'])
+    // Fire-and-forget, but swallow rejections (mpv shutting down mid-update
+    // would otherwise raise an unhandled rejection).
+    void command('set_property', ['keep-open', hasNext ? 'no' : 'always']).catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: queue position only
   }, [opts.ready, queue.length, currentIndex, repeat, shuffle])
 

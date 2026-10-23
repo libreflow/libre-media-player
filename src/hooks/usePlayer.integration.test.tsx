@@ -46,6 +46,26 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }))
 import { usePlayer } from './usePlayer'
 import { useFilePicker } from './useFilePicker'
 
+// Vitest prints unhandled rejections but does not fail the test for them
+// in this setup, so a bare `void rejectingPromise()` would pass silently.
+// This module-level listener makes every unhandled rejection in this file
+// fail the test that produced it: each test snapshots the count before it
+// runs and asserts it did not grow.
+//
+// The listener must be attached BEFORE the first test runs. Vitest's own
+// unhandled-rejection handler is installed when the first test starts; a
+// listener added inside a test body lands AFTER it, and vitest's handler
+// marks the rejection as "handled" before ours sees it (probe-verified:
+// inside-test listeners never fire). Module scope runs at import time,
+// which is before any test body executes.
+const unhandledRejections: unknown[] = []
+process.on('unhandledRejection', (reason: unknown) => {
+  unhandledRejections.push(reason)
+})
+function expectNoNewUnhandledRejection(before: number) {
+  expect(unhandledRejections.length).toBe(before)
+}
+
 // Exact wiring from App.tsx: useFilePicker receives player.loadFile.
 function Harness() {
   const player = usePlayer()
@@ -223,5 +243,180 @@ describe('usePlayer retryInit after a failed init', () => {
 
     // Restore the original mock so later tests in this file are unaffected.
     if (original) initMock.mockImplementation(original)
+  })
+
+  // Regression test (audit #2, N1): a double-click on "Réessayer" -- or
+  // clicking while a slow first init is still running -- used to null
+  // initPromiseRef a second time before the first doInit had assigned its
+  // promise, so the second doInit launched a SECOND concurrent native
+  // init() against an mpv instance that only tolerates one, and the first
+  // cycle's observeProperties unlisten was never called (duplicate mpv
+  // observers). retryInit now refuses to start while an init is in flight.
+  it('ignores a second retryInit while the first init is still in flight', async () => {
+    const libmpv = await import('tauri-plugin-libmpv-api')
+    const initMock = libmpv.init as unknown as ReturnType<typeof vi.fn>
+    const observeMock = libmpv.observeProperties as unknown as ReturnType<typeof vi.fn>
+    const originalInit = initMock.getMockImplementation()
+    const originalObserve = observeMock.getMockImplementation()
+
+    // The first init stays pending until we release it: "in flight".
+    let releaseInit: (() => void) | null = null
+    const initGate = new Promise<void>((r) => { releaseInit = r })
+    let calls = 0
+    initMock.mockImplementation(async () => {
+      calls++
+      await initGate
+      return 'main'
+    })
+
+    const holder: { current: ReturnType<typeof usePlayer> | null } = { current: null }
+    function Harness() {
+      const player = usePlayer()
+      useEffect(() => {
+        holder.current = player
+      })
+      return null
+    }
+    render(<Harness />)
+
+    // Let the mount effect's doInit reach the awaited init() call.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    expect(calls).toBe(1)
+    expect(holder.current!.ready).toBe(false)
+
+    // Double-click: two retryInit calls while the first init is pending.
+    // Both must be ignored -- no second native init(), no duplicate
+    // observer subscription.
+    const observeCallsBefore = observeMock.mock.calls.length
+    act(() => {
+      holder.current!.retryInit()
+      holder.current!.retryInit()
+    })
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    expect(calls).toBe(1)
+    expect(observeMock.mock.calls.length).toBe(observeCallsBefore)
+
+    // Release the in-flight init: it completes normally and the player
+    // becomes ready. No retry was needed or started.
+    await act(async () => {
+      releaseInit!()
+    })
+    await waitFor(() => expect(holder.current!.ready).toBe(true))
+    expect(calls).toBe(1)
+
+    // After the init settled, a retry is accepted again (the button's
+    // real use case): it cancels the live observer and re-inits.
+    observeMock.mockClear()
+    initMock.mockClear()
+    act(() => {
+      holder.current!.retryInit()
+    })
+    await waitFor(() => expect(initMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(holder.current!.ready).toBe(true))
+
+    // Restore the original mocks so later tests in this file are unaffected.
+    if (originalInit) initMock.mockImplementation(originalInit)
+    if (originalObserve) observeMock.mockImplementation(originalObserve)
+  })
+})
+
+// Regression tests (audit #2, N4): togglePause and setVolume used to fire
+// setProperty('pause'/'volume') as a bare `void` promise. When mpv rejects
+// it (player shutting down, command raced with a stop), the rejection
+// escaped as an unhandled promise rejection. Both now append .catch. Each
+// test snapshots the unhandled-rejection counter and asserts it did not
+// grow after exercising the rejecting path.
+describe('usePlayer fire-and-forget mpv calls swallow rejections', () => {
+  async function mountReadyPlayer() {
+    const holder: { current: ReturnType<typeof usePlayer> | null } = { current: null }
+    function Harness() {
+      const player = usePlayer()
+      useEffect(() => {
+        holder.current = player
+      })
+      return null
+    }
+    render(<Harness />)
+    await waitFor(() => expect(holder.current!.ready).toBe(true))
+    return holder
+  }
+
+  it('togglePause does not leak an unhandled rejection when mpv rejects', async () => {
+    const { setProperty } = await import('tauri-plugin-libmpv-api')
+    const setPropertyMock = setProperty as unknown as ReturnType<typeof vi.fn>
+    const original = setPropertyMock.getMockImplementation()
+    // NOTE: the impl must be a PLAIN async function (assigned via
+    // mockImplementation), not vi.fn(async () => { throw }) and not
+    // mockRejectedValue: vitest's mock wrapper attaches its own rejection
+    // tracking that swallows the process-level 'unhandledRejection' event
+    // this assertion relies on (probe-verified: a plain async fn fires it,
+    // a vi.fn-wrapped one does not).
+    const rejectingImpl = async (): Promise<void> => {
+      throw new Error('mpv command failed: pause')
+    }
+    setPropertyMock.mockImplementation(rejectingImpl)
+    const before = unhandledRejections.length
+    try {
+      const holder = await mountReadyPlayer()
+      act(() => {
+        holder.current!.togglePause()
+      })
+      // setTimeout(0) first: lets the rejection settle into the
+      // unhandledRejection event before the longer drain.
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0))
+        await new Promise((r) => setTimeout(r, 10))
+      })
+      expectNoNewUnhandledRejection(before)
+    } finally {
+      if (original) setPropertyMock.mockImplementation(original)
+    }
+  })
+
+  it('setVolume does not leak an unhandled rejection when mpv rejects', async () => {
+    const { setProperty } = await import('tauri-plugin-libmpv-api')
+    const setPropertyMock = setProperty as unknown as ReturnType<typeof vi.fn>
+    const original = setPropertyMock.getMockImplementation()
+    const rejectingImpl = async (): Promise<void> => {
+      throw new Error('mpv command failed: volume')
+    }
+    setPropertyMock.mockImplementation(rejectingImpl)
+    const before = unhandledRejections.length
+    try {
+      const holder = await mountReadyPlayer()
+      act(() => {
+        holder.current!.setVolume(42)
+      })
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0))
+        await new Promise((r) => setTimeout(r, 10))
+      })
+      // React state still updated optimistically.
+      expect(holder.current!.volume).toBe(42)
+      expectNoNewUnhandledRejection(before)
+    } finally {
+      if (original) setPropertyMock.mockImplementation(original)
+    }
+  })
+
+  // Meta-test: proves the unhandledRejection listener above actually fires
+  // in this file's setup. Without it, a broken listener would make the two
+  // tests above vacuously green. It intentionally produces one rejection via
+  // a bare `void` of a plain rejecting async fn and asserts the counter grew.
+  it('meta: the unhandledRejection listener fires in this file', async () => {
+    const rejecting = async (): Promise<void> => {
+      throw new Error('meta-probe')
+    }
+    const before = unhandledRejections.length
+    void rejecting()
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    expect(unhandledRejections.length).toBe(before + 1)
   })
 })

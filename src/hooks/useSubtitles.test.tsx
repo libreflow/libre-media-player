@@ -4,6 +4,7 @@ import { act, renderHook } from '@testing-library/react'
 const getPropertyMock = vi.hoisted(() => vi.fn(async (_name: string): Promise<unknown> => {
   throw new Error('mpv not initialized: no active window')
 }))
+const existsMock = vi.hoisted(() => vi.fn(async (_p: string | URL): Promise<boolean> => false))
 
 vi.mock('tauri-plugin-libmpv-api', () => ({
   getProperty: getPropertyMock,
@@ -11,7 +12,7 @@ vi.mock('tauri-plugin-libmpv-api', () => ({
   command: vi.fn(async () => {}),
 }))
 vi.mock('@tauri-apps/plugin-fs', () => ({
-  exists: vi.fn(async () => false),
+  exists: existsMock,
 }))
 
 import { useSubtitles } from './useSubtitles'
@@ -131,5 +132,156 @@ describe('useSubtitles onFileLoaded out-of-order guard', () => {
     expect(commandMock.mock.calls.length).toBe(commandsAfterB)
     // B's visible state is untouched.
     expect(result.current.visible).toBe(true)
+  })
+})
+
+// Regression test (audit #2, N3): loadedForRef used to be set to the video
+// path OPTIMISTICALLY -- at the top of the `if (loadedForRef.current !==
+// videoPath)` block, BEFORE the awaited loadSubtitle/setSubtitleVisible
+// calls. When a second load of the SAME path started while the first was
+// still awaiting (rapid next/prev back to the same file, or a superseded
+// call bailing at a guard), the first call's `loadedForRef = path` had
+// already landed, so the second call saw `loadedForRef === path` and
+// skipped the sidecar entirely -- no subtitle was ever loaded. The ref is
+// now set only after every mpv call in the block has succeeded AND the
+// call is still the latest.
+describe('useSubtitles onFileLoaded same-path rapid reload (N3)', () => {
+  it('a second load of the same path still loads the sidecar when the first call was superseded mid-flight', async () => {
+    // The sidecar exists for /tmp/same.mkv from the start. The FIRST
+    // onFileLoaded call is gated inside loadSubtitle (its sub-add command
+    // hangs on a manual promise), so when the SECOND onFileLoaded of the
+    // SAME path runs, the first is still in flight. With the OLD code,
+    // the first call had already set loadedForRef = '/tmp/same.mkv'
+    // optimistically (at the top of the loadedFor block, BEFORE its
+    // awaits), so the second call saw loadedForRef === path and skipped
+    // the sidecar entirely: no second sub-add, visible stays false. With
+    // the fix, the first call has not set loadedForRef yet (it bails at
+    // the superseded() guard after its gated sub-add resolves), so the
+    // second call loads the sidecar: sub-add fires, visible becomes true.
+    existsMock.mockImplementation(async (p: string | URL) => String(p).endsWith('/same.srt'))
+
+    // Gate the FIRST sub-add command on a manual promise.
+    let resolveFirstSubAdd: (() => void) | null = null
+    const firstSubAddGate = new Promise<void>((r) => { resolveFirstSubAdd = r })
+    let subAddCalls = 0
+    const { command } = await import('tauri-plugin-libmpv-api')
+    const commandMock = vi.mocked(command)
+    commandMock.mockImplementation(async (cmd: string) => {
+      if (cmd === 'sub-add') {
+        subAddCalls++
+        if (subAddCalls === 1) await firstSubAddGate // first call hangs here
+      }
+    })
+    getPropertyMock.mockImplementation(async (name: string): Promise<unknown> => {
+      if (name === 'track-list/count') return 0
+      if (name === 'sid') return 'no'
+      if (name === 'sub-visibility') return true
+      throw new Error(`unexpected property: ${name}`)
+    })
+
+    const { result } = renderHook(() => useSubtitles())
+
+    // First onFileLoaded('/tmp/same.mkv'): sidecar found, sub-add gated.
+    const firstDone = result.current.onFileLoaded('/tmp/same.mkv')
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
+    expect(subAddCalls).toBe(1)
+
+    // Second onFileLoaded('/tmp/same.mkv') while the first is gated.
+    // It must load the sidecar (a second sub-add) and show it.
+    await act(async () => {
+      await result.current.onFileLoaded('/tmp/same.mkv')
+    })
+    expect(commandMock).toHaveBeenCalledWith('sub-add', expect.anything())
+    expect(result.current.visible).toBe(true)
+    expect(subAddCalls).toBe(2)
+
+    // Release the first call. Its sequence is stale, so it bails at the
+    // superseded() guard -- without having poisoned loadedForRef in a way
+    // that breaks the second call.
+    await act(async () => {
+      resolveFirstSubAdd!()
+      await firstDone
+    })
+    // Still exactly two sub-adds; the stale first call issued no extra.
+    expect(subAddCalls).toBe(2)
+    expect(result.current.visible).toBe(true)
+  })
+})
+
+// Regression test (audit #2, N2): refreshTracks() at the end of
+// onFileLoaded issues several sequential mpv IPC calls (getProperty per
+// track field). A newer onFileLoaded can start while the older call's
+// refresh is still pending; without a guard, the stale refresh commits
+// its (older file's) track list AFTER the newer call already set the
+// newer file's -- the track menu then shows the wrong file's tracks.
+// The fix threads onFileLoaded's sequence guard into refreshTracks so a
+// stale refresh bails before every setState.
+describe('useSubtitles stale refreshTracks does not overwrite newer tracks (N2)', () => {
+  it('a stale refreshTracks does not overwrite the newer file\'s subTracks', async () => {
+    // getTracks reads 'track-list/count' first, then per-track fields.
+    // A's onFileLoaded calls getProperty('track-list/count') twice: once in
+    // countSubtitleTracks (the embedded-sub check) and once inside the
+    // refreshTracks at the end. Gate only the SECOND call for file A (the
+    // refreshTracks one) on a manual promise; every other call resolves
+    // immediately. That leaves A fully finished except its refresh, which
+    // hangs -- exactly the interleaving the staleness guard protects
+    // against.
+    let currentFile = 'a'
+    let resolveAGate: (() => void) | null = null
+    const aGate = new Promise<void>((r) => { resolveAGate = r })
+    const countCalls: string[] = []
+    getPropertyMock.mockImplementation(async (name: string): Promise<unknown> => {
+      if (name === 'track-list/count') {
+        countCalls.push(currentFile)
+        if (currentFile === 'a' && countCalls.filter((f) => f === 'a').length === 2) {
+          await aGate // A's refreshTracks count call hangs until released
+          return 1 // A has 1 sub track
+        }
+        return currentFile === 'a' ? 1 : 2
+      }
+      if (name === 'sid') return currentFile === 'a' ? 'no' : '1'
+      if (name === 'sub-visibility') return false
+      if (/^track-list\/\d+\/type$/.test(name)) return 'sub'
+      if (/^track-list\/\d+\/id$/.test(name)) {
+        const idx = Number(/^track-list\/(\d+)\/id$/.exec(name)![1])
+        return currentFile === 'a' ? 1 : idx + 10 // B's ids: 10, 11
+      }
+      if (/^track-list\/\d+\/selected$/.test(name)) return false
+      throw new Error(`unexpected property: ${name}`)
+    })
+
+    const fsMock = await import('@tauri-apps/plugin-fs')
+    // No sidecars for either file: the sidecar branch is skipped and the
+    // flow goes straight to refreshTracks.
+    vi.mocked(fsMock.exists).mockImplementation(async () => false)
+
+    const { result } = renderHook(() => useSubtitles())
+
+    // Start A's onFileLoaded. It finds no sidecar, counts embedded subs,
+    // and hangs inside its final refreshTracks' first getProperty.
+    currentFile = 'a'
+    const aDone = result.current.onFileLoaded('/tmp/a.mkv')
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    // Start B's onFileLoaded while A's refresh is gated. B completes fully
+    // and sets subTracks to B's two tracks (ids 10 and 11).
+    currentFile = 'b'
+    await act(async () => {
+      await result.current.onFileLoaded('/tmp/b.mkv')
+    })
+    expect(result.current.subTracks.map((t) => t.id)).toEqual([10, 11])
+
+    // Release A's gate. A's refreshTracks resumes; with the old code it
+    // would commit A's tracks (id 1) over B's. With the fix, the staleness
+    // guard bails before setSubTracks.
+    await act(async () => {
+      resolveAGate!()
+      await aDone
+    })
+    expect(result.current.subTracks.map((t) => t.id)).toEqual([10, 11])
   })
 })
