@@ -32,6 +32,10 @@ interface ControlsProps {
   seekingRef: React.MutableRefObject<boolean>
   timePos: number | null
   duration: number | null
+  /** Whether the controls overlay is currently shown (drives the seek
+   * bar's extrapolation loop: no point re-rendering at 60fps for a bar
+   * that's invisible). */
+  visible: boolean
 }
 
 export function Controls(props: ControlsProps) {
@@ -41,7 +45,7 @@ export function Controls(props: ControlsProps) {
     onToggleSubtitles, onPlayNext, onPlayPrevious, onOpenFile, onOpenDefaultAppsSettings, onTogglePlaylist,
     subTracks, audioTracks, onSelectSubtrack, onDisableSubtitles, onSelectAudioTrack,
     togglePause, toggleFullscreen, setVolume,
-    onSeekChange, onSeekCommit, seekingRef, timePos, duration,
+    onSeekChange, onSeekCommit, seekingRef, timePos, duration, visible,
   } = props
   return (
     <div className="controls" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
@@ -52,6 +56,7 @@ export function Controls(props: ControlsProps) {
         onSeekChange={onSeekChange}
         onSeekCommit={onSeekCommit}
         paused={paused}
+        visible={visible}
       />
       <div className="bottom-row">
         <button type="button" className="icon-btn" onClick={togglePause} aria-label={paused ? 'Lecture' : 'Pause'} title={paused ? 'Lecture (Espace)' : 'Pause (Espace)'}>

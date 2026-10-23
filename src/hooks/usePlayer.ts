@@ -29,7 +29,11 @@ export interface PlayerState {
   volume: number
 }
 
-export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & {
+export function usePlayer(
+  // loadGeneration identifies the mpv load that produced this callback
+  // (incremented per loadfile and per stop) -- see loadGenerationRef below.
+  onFileLoaded?: (path: string, loadGeneration: number) => void,
+): PlayerState & {
   loadFile: (path: string) => Promise<void>
   loadInFlightRef: React.MutableRefObject<boolean>
   seekingRef: React.MutableRefObject<boolean>
@@ -42,6 +46,11 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
   // Re-runs mpv init after a failure (clears the rejected init promise).
   // Exposed so the UI can offer a "Réessayer" button on the error banner.
   retryInit: () => void
+  // Clears the player error banner without re-running init -- for a
+  // transient load failure (e.g. one corrupt file) the player is still
+  // fully usable, and the banner used to be un-dismissable until the next
+  // successful load.
+  clearError: () => void
 } {
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -70,16 +79,22 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
   const observeUnlistenRef = useRef<(() => void) | null>(null)
   // Resolver for the current readiness promise, stored in a ref so
   // retryInit can resolve it after a successful re-init.
-  const readyResolveRef = useRef<(() => void) | null>(null)
   // True while a doInit cycle is running (between its start and its
   // settle). retryInit refuses to start a second cycle while this is
   // set -- two concurrent native init() calls are the double-click race
-  // N1 fixes.
+  // fixed alongside this flag.
   const initInFlightRef = useRef(false)
+  const readyResolveRef = useRef<(() => void) | null>(null)
   // Full path of the currently loaded file, as passed to loadFile -- NOT
   // the same as `filename` (mpv's observed 'filename' property is just the
   // basename, which is ambiguous as a resume-map key across directories).
   const currentPathRef = useRef<string | null>(null)
+  // Generation counter incremented on every mpv load transition (successful
+  // loadfile, stop). Passed to onFileLoaded so consumers (useSubtitles) can
+  // tell "same file, still the same load" (don't re-add the sidecar) from
+  // "same path reloaded" (mpv discarded sub-add tracks; the sidecar must be
+  // re-added -- repeat loop, stop then reopen from recents).
+  const loadGenerationRef = useRef(0)
 
   // Reads the current audio/sub track selection from mpv into the resume
   // tracking state. Reading per-save (rather than in the property observer)
@@ -119,11 +134,9 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
   onFileLoadedRef.current = onFileLoaded
 
   // Initialize mpv once, embedded in this window. The effect body is
-  // extracted into a retryable `doInit` so a failed init (missing libmpv
-  // DLL, GPU init error, ...) can be retried by the user instead of
-  // leaving the app stuck on the error banner forever. doInit wraps
-  // doInitInner with the initInFlight flag so retryInit can tell "init
-  // running" apart from "init failed and idle".
+  // extracted into a retryable `doInitInner` so a failed init (missing
+  // libmpv DLL, GPU init error, ...) can be retried by the user instead of
+  // leaving the app stuck on the error banner forever.
   const doInitInner = useCallback(async (signal: { cancelled: boolean }) => {
     // Reuse the in-flight (or completed) init across StrictMode's
     // unmount/remount cycle instead of calling init() twice.
@@ -188,36 +201,29 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
     readyResolveRef.current = null
   }, [resume])
 
-  const doInit = useCallback(
-    async (signal: { cancelled: boolean }) => {
-      initInFlightRef.current = true
-      try {
-        await doInitInner(signal)
-      } finally {
-        initInFlightRef.current = false
-      }
-    },
-    [doInitInner],
-  )
+  // Wrapper around doInitInner that tracks the in-flight state so
+  // retryInit can refuse to start a second concurrent init cycle.
+  const doInit = useCallback(async (signal: { cancelled: boolean }) => {
+    initInFlightRef.current = true
+    try {
+      await doInitInner(signal)
+    } finally {
+      initInFlightRef.current = false
+    }
+  }, [doInitInner])
 
   // Manual retry after a failed init: clears the cached init promise (the
   // old one already rejected, keeping it would make every retry await the
   // same rejection) and re-runs doInit.
   //
-  // Cancels any in-flight init cycle first: a double-click on "Réessayer"
-  // (or clicking while a slow init is still running) used to null
-  // initPromiseRef a second time before the first doInit had set it,
-  // launching two concurrent init() calls against an mpv instance that
-  // only tolerates one. The previous cycle's signal is cancelled and its
-  // observeProperties unlisten is called so no duplicate mpv observers
-  // survive the retry.
-  //
-  // An in-flight init is outright IGNORED, not just cancelled-and-replaced:
+  // An in-flight init is outright IGNORED, not cancelled-and-replaced:
   // replacing it would null initPromiseRef before the old doInit assigned
   // its promise, and the new doInit would then start a SECOND native
-  // init() while the first is still running -- precisely the race being
-  // fixed. When no init is in flight (the failed case the button exists
-  // for), the rejected cached promise is cleared and init re-runs.
+  // init() while the first is still running. When no init is in flight
+  // (the failed case the button exists for), the rejected cached promise
+  // is cleared and init re-runs.
+  const clearError = useCallback(() => setError(null), [])
+
   const retryInit = useCallback(() => {
     if (initInFlightRef.current) return
     if (initSignalRef.current) initSignalRef.current.cancelled = true
@@ -300,6 +306,7 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
         currentPathRef.current = previousPath
         throw e
       }
+      loadGenerationRef.current += 1
       // The new file owns the tracking from here on.
       resume.onFileChangeIncoming(path)
       // Observed properties only fire on CHANGE -- without this reset the
@@ -353,7 +360,7 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
       } catch {
         // best-effort; defaults apply
       }
-      onFileLoadedRef.current?.(path)
+      onFileLoadedRef.current?.(path, loadGenerationRef.current)
     } catch (e) {
       setError(`Impossible de lire ce fichier : ${String(e)}`)
       // Re-throw so callers (playlist playIndex) can detect the failure;
@@ -387,9 +394,7 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
   const togglePause = useCallback(() => {
     const next = !pausedRef.current
     pausedRef.current = next
-    // If mpv rejects the toggle, the property observer self-corrects the
-    // state; the rejection itself must not escape as unhandled.
-    void setProperty('pause', next).catch(() => {})
+    void setProperty('pause', next)
   }, [])
 
   // Stops playback and clears the current file, returning the player to
@@ -407,6 +412,10 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
     setDuration(null)
     setTimePos(null)
     setFilename(null)
+    // Invalidate the current load generation: mpv's stop discards tracks
+    // added via sub-add, so a later reopen of the SAME path must re-run the
+    // sidecar load (a bare path-based guard used to skip it).
+    loadGenerationRef.current += 1
     await command('stop')
   }, [])
 
@@ -418,7 +427,7 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
   const pendingVolumeRef = useRef<number | null>(null)
   const setVolume = useCallback((v: number) => {
     setVolumeState(v)
-    void setProperty('volume', v).catch(() => {})
+    void setProperty('volume', v)
     pendingVolumeRef.current = v
     if (volumeSaveTimerRef.current) clearTimeout(volumeSaveTimerRef.current)
     volumeSaveTimerRef.current = setTimeout(() => {
@@ -446,5 +455,6 @@ export function usePlayer(onFileLoaded?: (path: string) => void): PlayerState & 
     setVolume,
     stopPlayback,
     retryInit,
+    clearError,
   }
 }

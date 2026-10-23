@@ -22,9 +22,15 @@ export function useSubtitles(onError?: (msg: string) => void) {
   const [visible, setVisible] = useState(false)
   const [subTracks, setSubTracks] = useState<MpvTrack[]>([])
   const [audio, setAudio] = useState<MpvTrack[]>([])
-  // The video path whose sidecar is currently loaded, so we don't re-add
-  // the same sub track when the user merely toggles visibility.
-  const loadedForRef = useRef<string | null>(null)
+  // The (load generation, video path) pair for which the sidecar is
+  // currently loaded, so we don't re-add the same sub track when the user
+  // merely toggles visibility or re-triggers onFileLoaded within one
+  // load. The generation comes from usePlayer's loadSeqRef and increments
+  // on every successful loadfile AND on stop: mpv discards tracks added
+  // via sub-add on each loadfile, so the same path reloaded (repeat loop,
+  // stop then reopen from recents) must re-run the sidecar load -- a bare
+  // path guard used to skip it and silently lose subtitles.
+  const loadedForRef = useRef<{ generation: number; path: string } | null>(null)
   // Monotonic sequence number for onFileLoaded calls. onFileLoaded is
   // async and fire-and-forget from usePlayer, so two rapid file switches
   // (next/prev spam, multi-drop) can interleave: file A's sidecar
@@ -56,7 +62,7 @@ export function useSubtitles(onError?: (msg: string) => void) {
     [],
   )
 
-  const onFileLoaded = useCallback(async (videoPath: string) => {
+  const onFileLoaded = useCallback(async (videoPath: string, loadGeneration?: number) => {
     const seq = ++loadSeqRef.current
     // True when a newer onFileLoaded call has started, meaning this one's
     // results are stale and must not touch state or mpv.
@@ -64,7 +70,14 @@ export function useSubtitles(onError?: (msg: string) => void) {
     try {
       const sidecar = await findSidecarSubtitle(videoPath)
       if (superseded()) return
-      if (loadedForRef.current !== videoPath) {
+      const alreadyLoadedForThisLoad =
+        loadedForRef.current != null &&
+        loadedForRef.current.path === videoPath &&
+        loadGeneration != null &&
+        loadedForRef.current.generation === loadGeneration
+      if (!alreadyLoadedForThisLoad) {
+        loadedForRef.current =
+          loadGeneration != null ? { generation: loadGeneration, path: videoPath } : null
         if (sidecar) {
           setAvailable(true)
           await loadSubtitle(sidecar)
@@ -83,28 +96,18 @@ export function useSubtitles(onError?: (msg: string) => void) {
           // isSubtitleActive (sid != no AND sub-visibility) rather than
           // sub-visibility alone: mpv keeps sub-visibility=yes with sid=no,
           // which left the button lit after "Désactivés" + reopen.
-          const active = subCount > 0 ? await isSubtitleActive() : false
+          setVisible(subCount > 0 ? await isSubtitleActive() : false)
           if (superseded()) return
-          setVisible(active)
         }
-        // Only mark the sidecar as loaded once every mpv call above has
-        // succeeded AND this call is still the latest. Setting it earlier
-        // (before the awaits) let a superseded call bail out while a second
-        // load of the SAME path saw loadedForRef === path and skipped the
-        // sidecar entirely -- no subtitle ever loaded.
-        loadedForRef.current = videoPath
       }
-      // refreshTracks issues several sequential mpv IPC calls (~40ms for a
-      // multi-track file); a newer onFileLoaded can start while this await
-      // is pending and would be overwritten by the stale result. Pass the
-      // sequence guard down so the refresh bails before committing state.
       await refreshTracks(superseded)
     } catch {
       if (superseded()) return
       // Subtitle discovery is best-effort; never block playback on it.
       setAvailable(false)
       setVisible(false)
-      loadedForRef.current = videoPath
+      loadedForRef.current =
+        loadGeneration != null ? { generation: loadGeneration, path: videoPath } : null
     }
   }, [refreshTracks])
 
@@ -142,7 +145,7 @@ export function useSubtitles(onError?: (msg: string) => void) {
       // unhandled rejection escape from `void subtitles.toggle()` in App.tsx.
       onError?.(`Sous-titres indisponibles : ${String(e)}`)
     }
-  }, [onError])
+  }, [onError, refreshTracks])
 
   // Reset when the app starts (no file loaded yet).
   useEffect(() => () => {

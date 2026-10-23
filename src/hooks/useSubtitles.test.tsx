@@ -72,6 +72,69 @@ describe('useSubtitles visible state with sid=no', () => {
   })
 })
 
+// Regression test: mpv DISCARDS tracks added via sub-add on every loadfile
+// (and on stop). Re-loading the same path -- a one-file repeat loop wrapping
+// around, or stop-then-reopen from the recents list -- must therefore re-add
+// the sidecar. The guard used to be the bare path, so the second onFileLoaded
+// for the same path skipped the sub-add and subtitles silently disappeared
+// from the second playthrough onward. The fix keys the guard on a load
+// GENERATION (incremented per loadfile/stop by usePlayer): same path within
+// the same load = skip, same path in a NEW generation = re-add.
+describe('useSubtitles sidecar reload for the same path', () => {
+  it('re-adds the sidecar when the same path is loaded in a new generation', async () => {
+    const fsMock = await import('@tauri-apps/plugin-fs')
+    vi.mocked(fsMock.exists).mockImplementation(async () => true)
+    const { command } = await import('tauri-plugin-libmpv-api')
+    const commandMock = vi.mocked(command)
+    commandMock.mockClear()
+
+    const { result } = renderHook(() => useSubtitles())
+
+    // First load (generation 1): sidecar discovered and added.
+    await act(async () => {
+      await result.current.onFileLoaded('/tmp/video.mkv', 1)
+    })
+    expect(commandMock).toHaveBeenCalledWith('sub-add', ['/tmp/video.srt', 'auto'])
+    expect(result.current.visible).toBe(true)
+
+    // Second load of the SAME path, new generation (e.g. repeat wrap or
+    // stop+reopen): the sidecar must be re-added, not skipped.
+    commandMock.mockClear()
+    await act(async () => {
+      await result.current.onFileLoaded('/tmp/video.mkv', 2)
+    })
+    expect(commandMock).toHaveBeenCalledWith('sub-add', ['/tmp/video.srt', 'auto'])
+    expect(result.current.visible).toBe(true)
+  })
+
+  it('does not re-add the sidecar when onFileLoaded re-runs within the same load', async () => {
+    const fsMock = await import('@tauri-apps/plugin-fs')
+    vi.mocked(fsMock.exists).mockImplementation(async () => true)
+    const { command } = await import('tauri-plugin-libmpv-api')
+    const commandMock = vi.mocked(command)
+    commandMock.mockClear()
+
+    const { result } = renderHook(() => useSubtitles())
+
+    await act(async () => {
+      await result.current.onFileLoaded('/tmp/video.mkv', 7)
+    })
+    expect(commandMock).toHaveBeenCalledWith('sub-add', ['/tmp/video.srt', 'auto'])
+    const addsAfterFirst = commandMock.mock.calls.filter(
+      (c) => c[0] === 'sub-add',
+    ).length
+
+    // Same path, same generation (e.g. a duplicate onFileLoaded call for the
+    // current load): the sidecar must NOT be added again.
+    await act(async () => {
+      await result.current.onFileLoaded('/tmp/video.mkv', 7)
+    })
+    expect(
+      commandMock.mock.calls.filter((c) => c[0] === 'sub-add').length,
+    ).toBe(addsAfterFirst)
+  })
+})
+
 // Regression test: onFileLoaded is async and fire-and-forget from
 // usePlayer, so two rapid file switches (next/prev spam) can interleave.
 // Without a sequence guard, the OLDER call's late-resolving sidecar

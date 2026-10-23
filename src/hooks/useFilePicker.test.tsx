@@ -14,7 +14,6 @@ import { useFilePicker } from './useFilePicker'
 function setup(overrides: Partial<Parameters<typeof useFilePicker>[0]> = {}) {
   const loadFile = vi.fn(async () => {})
   const onFilesDropped = vi.fn()
-  const onFilePicked = vi.fn()
   const onError = vi.fn()
   const readyRef = { current: true }
   const { result } = renderHook(() =>
@@ -22,12 +21,11 @@ function setup(overrides: Partial<Parameters<typeof useFilePicker>[0]> = {}) {
       readyRef,
       loadFile,
       onFilesDropped,
-      onFilePicked,
       onError,
       ...overrides,
     }),
   )
-  return { result, loadFile, onFilesDropped, onFilePicked, onError }
+  return { result, loadFile, onFilesDropped, onError }
 }
 
 // Regression test: the native open dialog was called with `multiple: false`
@@ -49,46 +47,35 @@ describe('useFilePicker.openFile -- multiple selection', () => {
 
   it('routes every picked file through onFilesDropped when several are selected', async () => {
     openMock.mockResolvedValueOnce(['/videos/a.mkv', '/videos/b.mkv', '/videos/c.mkv'])
-    const { result, onFilesDropped, onFilePicked, loadFile } = setup()
+    const { result, onFilesDropped, loadFile } = setup()
     await act(async () => {
       await result.current.openFile()
     })
     expect(onFilesDropped).toHaveBeenCalledWith(['/videos/a.mkv', '/videos/b.mkv', '/videos/c.mkv'])
-    expect(onFilePicked).not.toHaveBeenCalled()
     expect(loadFile).not.toHaveBeenCalled()
   })
 
-  it('still works for a single picked file (dialog returns a bare string)', async () => {
+  it('routes a bare-string result (defensive: dialog normally returns an array) through onFilesDropped as a list', async () => {
     openMock.mockResolvedValueOnce('/videos/a.mkv')
-    const { result, onFilePicked, onFilesDropped } = setup()
+    const { result, onFilesDropped, loadFile } = setup()
     await act(async () => {
       await result.current.openFile()
     })
-    expect(onFilePicked).toHaveBeenCalledWith('/videos/a.mkv')
-    expect(onFilesDropped).not.toHaveBeenCalled()
+    expect(onFilesDropped).toHaveBeenCalledWith(['/videos/a.mkv'])
+    expect(loadFile).not.toHaveBeenCalled()
   })
 
   it('does nothing when the dialog is cancelled (null)', async () => {
     openMock.mockResolvedValueOnce(null)
-    const { result, onFilePicked, onFilesDropped, loadFile } = setup()
+    const { result, onFilesDropped, loadFile } = setup()
     await act(async () => {
       await result.current.openFile()
     })
-    expect(onFilePicked).not.toHaveBeenCalled()
     expect(onFilesDropped).not.toHaveBeenCalled()
     expect(loadFile).not.toHaveBeenCalled()
   })
 
-  it('falls back to loadFile for a single pick when onFilePicked is not provided', async () => {
-    openMock.mockResolvedValueOnce('/videos/a.mkv')
-    const { result, loadFile } = setup({ onFilePicked: undefined })
-    await act(async () => {
-      await result.current.openFile()
-    })
-    expect(loadFile).toHaveBeenCalledWith('/videos/a.mkv')
-  })
-
-  it('falls back to loadFile with the first file for a multi-pick when onFilesDropped is not provided', async () => {
+  it('falls back to loadFile with the first file when onFilesDropped is not provided', async () => {
     openMock.mockResolvedValueOnce(['/videos/a.mkv', '/videos/b.mkv'])
     const { result, loadFile } = setup({ onFilesDropped: undefined })
     await act(async () => {
@@ -114,31 +101,30 @@ describe('useFilePicker.openFile -- video-only filtering', () => {
 
   it('filters a non-video single pick instead of loading it', async () => {
     openMock.mockResolvedValueOnce('/videos/film.srt')
-    const { result, onFilePicked, loadFile } = setup()
+    const { result, loadFile, onFilesDropped } = setup()
     await act(async () => {
       await result.current.openFile()
     })
-    expect(onFilePicked).not.toHaveBeenCalled()
     expect(loadFile).not.toHaveBeenCalled()
+    expect(onFilesDropped).not.toHaveBeenCalled()
   })
 
   it('is case-insensitive on extensions, like drag-drop', async () => {
     openMock.mockResolvedValueOnce('/videos/film.MP4')
-    const { result, onFilePicked } = setup()
+    const { result, onFilesDropped } = setup()
     await act(async () => {
       await result.current.openFile()
     })
-    expect(onFilePicked).toHaveBeenCalledWith('/videos/film.MP4')
+    expect(onFilesDropped).toHaveBeenCalledWith(['/videos/film.MP4'])
   })
 
   it('does nothing when every picked file is filtered out', async () => {
     openMock.mockResolvedValueOnce(['/videos/a.srt', '/cover.jpg'])
-    const { result, onFilesDropped, onFilePicked, loadFile } = setup()
+    const { result, onFilesDropped, loadFile } = setup()
     await act(async () => {
       await result.current.openFile()
     })
     expect(onFilesDropped).not.toHaveBeenCalled()
-    expect(onFilePicked).not.toHaveBeenCalled()
     expect(loadFile).not.toHaveBeenCalled()
   })
 })
