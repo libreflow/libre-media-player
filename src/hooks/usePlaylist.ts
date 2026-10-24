@@ -156,10 +156,16 @@ export function usePlaylist(opts: {
   const removeAt = useCallback((index: number) => {
     const current = indexRef.current
     const next = queueRef.current.filter((_, i) => i !== index)
+    // Mirror the queue ref synchronously AND the index ref: the end-file
+    // listener (and any other callback-driven flow) reads indexRef in the
+    // same tick as this mutation, before React commits and the render-time
+    // ref sync runs. A stale index there computed auto-advance off the
+    // removed item's position.
     queueRef.current = next
     setQueue(next)
     if (current === -1) return
     if (index < current) {
+      indexRef.current = current - 1
       setCurrentIndex(current - 1)
       return
     }
@@ -168,8 +174,10 @@ export function usePlaylist(opts: {
     // its slot (VLC behavior). Previously this left the index at -1 while
     // the file kept playing -- a "ghost" entry with disabled prev/next.
     if (index < next.length) {
+      indexRef.current = index
       void playIndex(index)
     } else {
+      indexRef.current = -1
       setCurrentIndex(-1)
       // stopPlayback awaits command('stop') which can reject (mpv shutting
       // down, already stopped) -- catch so this fire-and-forget call never
@@ -244,19 +252,20 @@ export function usePlaylist(opts: {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: queue position only
   }, [opts.ready, queue.length, currentIndex, repeat, shuffle])
 
+  // Compute the next value OUTSIDE the state updater: React may invoke an
+  // updater twice (StrictMode double-invoke in dev), and an updateSettings
+  // call inside it would persist twice. Reading the ref (synced every
+  // render) for the current value keeps the toggle correct even when two
+  // toggles land before the next commit.
   const toggleShuffle = useCallback(() => {
-    setShuffleState((v) => {
-      const next = !v
-      void updateSettings({ shuffle: next })
-      return next
-    })
+    const next = !shuffleRef.current
+    setShuffleState(next)
+    void updateSettings({ shuffle: next })
   }, [])
   const toggleRepeat = useCallback(() => {
-    setRepeatState((v) => {
-      const next = !v
-      void updateSettings({ repeat: next })
-      return next
-    })
+    const next = !repeatRef.current
+    setRepeatState(next)
+    void updateSettings({ repeat: next })
   }, [])
 
   return {

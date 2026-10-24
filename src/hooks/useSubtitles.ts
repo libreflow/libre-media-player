@@ -147,7 +147,10 @@ export function useSubtitles(onError?: (msg: string) => void) {
     }
   }, [onError, refreshTracks])
 
-  // Reset when the app starts (no file loaded yet).
+  // Forget the sidecar-loaded marker on unmount: a StrictMode
+  // remount (or a runtime reload) must not carry a stale (generation,
+  // path) pair into the next mount, where it could wrongly suppress a
+  // legitimate sidecar re-add for that same path.
   useEffect(() => () => {
     loadedForRef.current = null
   }, [])

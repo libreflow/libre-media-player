@@ -402,11 +402,15 @@ export function usePlayer(
   // property back to null, which propagates through the property observer
   // and flips hasMedia to false. The local state resets mirror loadFileInner's
   // post-load resets (observed properties only fire on CHANGE, so a leftover
-  // duration/timePos would otherwise survive on the UI side). Resume state is
-  // NOT reset here: the save already happened through the periodic/pause
-  // checkpoints, and keeping the tracked path lets a later checkpoint write
-  // the final position under the right key.
+  // duration/timePos would otherwise survive on the UI side).
   const stopPlayback = useCallback(async () => {
+    // Checkpoint the position BEFORE stopping: the periodic timer saves at
+    // most every RESUME_SAVE_INTERVAL_MS (5s), so removing the playing item
+    // from the queue or clearing the queue used to silently drop up to 5
+    // seconds of progress for a file the user intentionally keeps around.
+    // Await it -- stop discards the tracked position right after, so a
+    // fire-and-forget save could still race the stop.
+    await resume.checkpoint().catch(() => {})
     setPaused(true)
     pausedRef.current = true
     setDuration(null)
@@ -417,7 +421,7 @@ export function usePlayer(
     // sidecar load (a bare path-based guard used to skip it).
     loadGenerationRef.current += 1
     await command('stop')
-  }, [])
+  }, [resume])
 
   // Debounced persistence for the volume: the slider fires setVolume on
   // every input event during a drag (~60/s), and persisting on each call

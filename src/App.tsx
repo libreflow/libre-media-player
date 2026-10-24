@@ -21,7 +21,14 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const onError = useCallback((msg: string) => setError(msg), [])
   const subtitles = useSubtitles(onError)
-  const player = usePlayer((path) => void subtitles.onFileLoaded(path))
+  // Forward BOTH arguments (path AND loadGeneration): usePlayer invokes
+  // onFileLoaded with the generation of the load that produced the
+  // callback, and useSubtitles' sidecar dedup relies on it to tell
+  // "same load, re-triggered" from "same path reloaded". A wrapper that
+  // dropped the generation silently disabled that guard in production
+  // while its unit tests (which passed the generation directly) stayed
+  // green.
+  const player = usePlayer((path, loadGeneration) => void subtitles.onFileLoaded(path, loadGeneration))
   const clearPlayerError = player.clearError
   const dismissError = useCallback(() => {
     setError(null)
