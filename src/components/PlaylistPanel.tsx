@@ -27,7 +27,7 @@ export function PlaylistPanel({ open, queue, currentIndex, shuffle, repeat, onTo
           title="Lecture aléatoire"
           onClick={(e) => { e.stopPropagation(); onToggleShuffle() }}
         >
-          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
             <path d="M17 3l4 4-4 4V8h-2.7l-2.9 3.2-1.4-1.3L13.4 6H17V3zM3 6h4.3l2.1 2.3-1.3 1.4L6.5 8H3V6zm14 7v-3l4 4-4 4v-3h-3.6l-2.9-3.2 1.4-1.4L14.3 13H17zM3 16h3.5l5.9-6.6 1.4 1.4L7.9 18H3v-2z" />
           </svg>
         </button>
@@ -38,17 +38,17 @@ export function PlaylistPanel({ open, queue, currentIndex, shuffle, repeat, onTo
           title="Répéter la file"
           onClick={(e) => { e.stopPropagation(); onToggleRepeat() }}
         >
-          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
             <path d="M7 7h10v2l4-3-4-3v2H5v6h2V7zm10 10H7v-2l-4 3 4 3v-2h12v-6h-2v4z" />
           </svg>
         </button>
         <button type="button" className="icon-btn" aria-label="Vider la file" title="Vider la file" onClick={onClear}>
-          <svg viewBox="0 0 24 24" fill="currentColor">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
             <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
           </svg>
         </button>
         <button type="button" className="icon-btn" aria-label="Fermer" title="Fermer (Échap)" onClick={onClose}>
-          <svg viewBox="0 0 24 24" fill="currentColor">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
             <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
           </svg>
         </button>
@@ -71,7 +71,7 @@ export function PlaylistPanel({ open, queue, currentIndex, shuffle, repeat, onTo
                 onRemove(i)
               }}
             >
-              <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
               </svg>
             </button>

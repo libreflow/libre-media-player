@@ -8,6 +8,11 @@ import { basename } from '../utils'
 // read or write recent.json must never surface as an error banner.
 export function useRecentFiles(opts: {
   loadFile: (path: string) => Promise<void>
+  // When provided, opening a recent routes through the queue (like the
+  // picker and drag-drop) so the reopened file gets prev/next navigation
+  // instead of playing "outside" the playlist. Without it, the hook
+  // falls back to a bare load.
+  onOpenRecent?: (path: string) => void
   onError: (msg: string) => void
 }) {
   const [recents, setRecents] = useState<RecentEntry[]>([])
@@ -45,6 +50,14 @@ export function useRecentFiles(opts: {
   }, [])
 
   const openRecent = useCallback((path: string) => {
+    // Route through the queue when the app provides one: a reopened
+    // recent used to load outside the playlist, with no prev/next
+    // navigation and no queue entry -- inconsistent with every other
+    // entry point (picker, drag-drop, file association all append).
+    if (optsRef.current.onOpenRecent) {
+      optsRef.current.onOpenRecent(path)
+      return
+    }
     void optsRef.current.loadFile(path).catch((e) => {
       optsRef.current.onError(`Impossible d'ouvrir le fichier : ${String(e)}`)
     })

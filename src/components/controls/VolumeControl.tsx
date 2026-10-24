@@ -31,17 +31,17 @@ export function VolumeControl({ volume, setVolume }: VolumeControlProps) {
         title={muted ? 'Réactiver le son' : 'Couper le son'}
       >
         {muted ? (
-          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
             <path d="M3 10v4h4l5 5V5L7 10H3z" />
             <path d="M19.5 8.5l-1.4-1.4-2.1 2.1-2.1-2.1-1.4 1.4 2.1 2.1-2.1 2.1 1.4 1.4 2.1-2.1 2.1 2.1 1.4-1.4-2.1-2.1z" transform="translate(4 -2)" />
           </svg>
         ) : low ? (
-          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
             <path d="M3 10v4h4l5 5V5L7 10H3z" />
             <path d="M14.5 8.5a4.5 4.5 0 010 7" stroke="currentColor" strokeWidth="1.6" fill="none" />
           </svg>
         ) : (
-          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
             <path d="M3 10v4h4l5 5V5L7 10H3z" />
             <path d="M14.5 8.5a4.5 4.5 0 010 7" stroke="currentColor" strokeWidth="1.6" fill="none" />
             <path d="M17.5 6a8 8 0 010 12" stroke="currentColor" strokeWidth="1.6" fill="none" />
@@ -51,6 +51,7 @@ export function VolumeControl({ volume, setVolume }: VolumeControlProps) {
       <input
         type="range"
         className="volume-bar"
+        aria-label="Volume"
         min={0}
         max={MAX_VOLUME}
         value={volume}

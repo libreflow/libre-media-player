@@ -69,3 +69,31 @@ describe('saveResumePosition / getResumePosition', () => {
     expect(await getResumePosition(PATH)).toBe(600)
   })
 })
+
+// Regression test (audit #4): resume.json is a complete viewing history
+// (full paths + positions + timestamps) and used to grow without bound.
+// prunedMap now caps the map at MAX_RESUME_ENTRIES, evicting the
+// least-recently-updated entries first.
+describe('resume map cap (audit #4)', () => {
+  it('evicts the oldest entries beyond the cap, keeping the most recent', async () => {
+    // Simulate 105 distinct watched files, saved in ascending time order.
+    for (let i = 0; i < 105; i++) {
+      const p = `C:/movies/file${String(i).padStart(3, '0')}.mkv`
+      memory.set(p, '')
+      // Force distinct updatedAt values: Date.now() is mocked per save via
+      // the entry write, so space the calls with a controlled clock.
+      vi.spyOn(Date, 'now').mockReturnValue(1_000_000 + i * 1000)
+      await saveResumePosition(p, 600, 1200)
+    }
+    vi.spyOn(Date, 'now').mockRestore()
+
+    // The map on disk must be capped: only the 100 most recent survive.
+    const raw = memory.get('/mock-config//resume.json')!
+    const map = JSON.parse(raw) as Record<string, { updatedAt: number }>
+    expect(Object.keys(map)).toHaveLength(100)
+    // The oldest 5 are gone, the newest is present.
+    expect(map['C:/movies/file000.mkv']).toBeUndefined()
+    expect(map['C:/movies/file004.mkv']).toBeUndefined()
+    expect(map['C:/movies/file104.mkv']).toBeDefined()
+  })
+})
