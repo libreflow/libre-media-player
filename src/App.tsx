@@ -35,8 +35,14 @@ function App() {
     clearPlayerError()
   }, [clearPlayerError])
   const { isFullscreen, toggleFullscreen } = useFullscreen(onError)
+  // Queue routing for a reopened recent, assigned below once the playlist
+  // exists (the recents hook must be declared before loadFile's wrapper,
+  // which needs its recordOpened -- the two cannot simply be reordered).
+  // The hook reads this ref at click time, so a late assignment is fine.
+  const openRecentRoutedRef = useRef<(path: string) => void>(() => {})
   const { recents, recordOpened, openRecent, clear: clearRecents } = useRecentFiles({
     loadFile: player.loadFile,
+    onOpenRecent: (path) => openRecentRoutedRef.current(path),
     onError,
   })
   // Single load path wrapped so every successful open (picker, drag-drop,
@@ -73,6 +79,19 @@ function App() {
     stopPlayback: () => void player.stopPlayback(),
     onError,
   })
+  // Route a reopened recent through the queue like every other entry
+  // point (picker, drag-drop, file association): play the existing queue
+  // entry if the file is already queued, else append it -- so a reopened
+  // recent gets prev/next navigation instead of playing outside the
+  // playlist with the old bare-load path. Re-assigned every render so the
+  // closure always sees the live queue.
+  openRecentRoutedRef.current = (path) => {
+    if (!player.readyRef.current) return
+    const existing = playlist.queue.findIndex((i) => i.path === path)
+    if (existing >= 0) void playlist.playIndex(existing)
+    else playlist.append([path])
+  }
+
   useFileAssociation({
     whenReady: player.whenReady,
     loadFile,
@@ -167,7 +186,7 @@ function App() {
               dismissError()
             }}
           >
-            <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
             </svg>
           </button>

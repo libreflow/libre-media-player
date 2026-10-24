@@ -26,6 +26,13 @@ function subtitleCandidates(videoPath: string): string[] {
 // visible latency before the first frame on files without any sidecar.
 // Order is preserved when resolving: the first existing candidate (in
 // candidate priority order) wins.
+// SECURITY NOTE: probing sidecars next to the opened video requires the
+// fs:allow-exists permission to be unscoped ("**") in
+// src-tauri/capabilities/default.json -- the video's directory is
+// user-chosen and unknowable at build time. exists() only answers
+// yes/no, no content is readable, so the exposure is a bare
+// existence-oracle for paths derived from files the app is explicitly
+// told about. Every other fs permission is scoped to $APPCONFIG.
 export async function findSidecarSubtitle(videoPath: string): Promise<string | null> {
   const candidates = subtitleCandidates(videoPath)
   const results = await Promise.all(candidates.map((c) => exists(c).catch(() => false)))

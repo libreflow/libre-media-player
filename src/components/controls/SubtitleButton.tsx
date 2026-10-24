@@ -49,7 +49,7 @@ export function SubtitleButton({
           aria-label={subtitlesVisible ? 'Masquer les sous-titres' : 'Afficher les sous-titres'}
           title={subtitlesAvailable ? 'Sous-titres (s) — le chevron permet de choisir la piste' : 'Aucun sous-titre trouvé'}
         >
-          <svg viewBox="0 0 24 24" fill="currentColor">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
             <path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm-2-4H10v-2h8v2z" />
           </svg>
         </button>
@@ -65,7 +65,7 @@ export function SubtitleButton({
             aria-expanded={open}
             title="Choisir la piste de sous-titres"
           >
-            <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
               <path d="M7 10l5 5 5-5z" />
             </svg>
           </button>

@@ -11,6 +11,13 @@ const MIN_RESUMABLE_SECONDS = 5
 // than resumable (avoids re-seeking to 99% and immediately hitting EOF).
 const FINISHED_THRESHOLD = 0.97
 
+// Cap on the number of remembered positions. resume.json is a complete
+// viewing history (full paths + positions + timestamps) and without a cap
+// it grows forever -- for a player whose pitch is "your videos stay with
+// you", an unbounded on-disk history is a privacy liability, not a
+// feature. Oldest entries (by updatedAt) are evicted first.
+const MAX_RESUME_ENTRIES = 100
+
 interface ResumeEntry {
   position: number
   duration: number
@@ -114,7 +121,15 @@ async function prunedMap(map: ResumeMap): Promise<ResumeMap> {
       return fileExists ? [filePath, entry] : null
     }),
   )
-  return Object.fromEntries(entries.filter((e): e is [string, ResumeEntry] => e !== null))
+  const live = entries.filter((e): e is [string, ResumeEntry] => e !== null)
+  if (live.length > MAX_RESUME_ENTRIES) {
+    // Evict the least-recently-updated entries beyond the cap: sort a copy
+    // (ascending updatedAt), keep the tail. Runs only when the map grew
+    // past the cap, so the sort cost is bounded and rare.
+    live.sort((a, b) => a[1].updatedAt - b[1].updatedAt)
+    return Object.fromEntries(live.slice(live.length - MAX_RESUME_ENTRIES))
+  }
+  return Object.fromEntries(live)
 }
 
 // Returns the remembered position for this file, or null if there is

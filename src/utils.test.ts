@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatTime, pickSupportedFile, VIDEO_EXTENSIONS } from './utils'
+import { formatTime, pickSupportedFile, splitPath, VIDEO_EXTENSIONS } from './utils'
 
 describe('formatTime', () => {
   it('renders a placeholder for null/NaN', () => {
@@ -57,5 +57,18 @@ describe('pickSupportedFile', () => {
   it('knows the supported extensions list', () => {
     expect(VIDEO_EXTENSIONS).toContain('mkv')
     expect(VIDEO_EXTENSIONS).toContain('webm')
+  })
+})
+
+// Regression test (audit #4): a bare drive-prefixed Windows path
+// ("C:movie.mkv", resolved by Windows against the drive's current
+// directory) used to keep the "C:" inside the basename.
+describe('splitPath bare drive prefix (audit #4)', () => {
+  it('splits "C:movie.mkv" into dir "C:" and name "movie.mkv"', () => {
+    expect(splitPath('C:movie.mkv')).toEqual({ dir: 'C:', name: 'movie.mkv' })
+  })
+  it('still splits fully-qualified paths correctly', () => {
+    expect(splitPath('C:/movies/movie.mkv')).toEqual({ dir: 'C:/movies/', name: 'movie.mkv' })
+    expect(splitPath('C:\\movies\\movie.mkv')).toEqual({ dir: 'C:\\movies\\', name: 'movie.mkv' })
   })
 })

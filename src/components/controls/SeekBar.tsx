@@ -75,6 +75,8 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
       <input
         type="range"
         className="seek-bar"
+        aria-label="Position de lecture"
+        title="Position de lecture"
         min={0}
         max={duration ?? 0}
         step={0.1}

@@ -90,3 +90,36 @@ describe('useRecentFiles', () => {
     expect(recentMock.clearRecentFiles).toHaveBeenCalled()
   })
 })
+
+// Regression test (audit #4): openRecent used to bypass the queue with a
+// bare load -- the reopened file played outside the playlist with no
+// prev/next navigation. The hook now routes through onOpenRecent when the
+// app provides one (App wires it to the queue) and only falls back to the
+// bare load otherwise.
+describe('useRecentFiles openRecent queue routing (audit #4)', () => {
+  it('routes through onOpenRecent when provided, not the bare load', async () => {
+    const loadFile = vi.fn(async () => {})
+    const onOpenRecent = vi.fn()
+    const { result } = renderHook(() =>
+      useRecentFiles({ loadFile, onOpenRecent, onError: vi.fn() }),
+    )
+    await waitFor(() => {
+      expect(result.current.recents).toHaveLength(2)
+    })
+    act(() => result.current.openRecent('C:/movies/a.mkv'))
+    expect(onOpenRecent).toHaveBeenCalledWith('C:/movies/a.mkv')
+    expect(loadFile).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the bare load when no routing is provided', async () => {
+    const loadFile = vi.fn(async () => {})
+    const { result } = renderHook(() =>
+      useRecentFiles({ loadFile, onError: vi.fn() }),
+    )
+    await waitFor(() => {
+      expect(result.current.recents).toHaveLength(2)
+    })
+    act(() => result.current.openRecent('C:/movies/a.mkv'))
+    expect(loadFile).toHaveBeenCalledWith('C:/movies/a.mkv')
+  })
+})

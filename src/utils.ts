@@ -22,6 +22,12 @@ const VIDEO_EXTENSION_SET = new Set(VIDEO_EXTENSIONS)
 // basenames -- kept here so the two never diverge on edge cases (Windows
 // drive prefixes, missing separators).
 export function splitPath(path: string): { dir: string; name: string } {
+  // A bare drive-prefixed name ("C:movie.mkv" -- Windows resolves it
+  // against the drive's current directory) is a name with a "C:" dir,
+  // not a filename that happens to contain a colon.
+  if (path.length > 2 && path[1] === ':' && !path.includes('/') && !path.includes('\\')) {
+    return { dir: path.slice(0, 2), name: path.slice(2) }
+  }
   const slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
   if (slash === -1) return { dir: '', name: path }
   // Preserve a Windows drive prefix ("C:") when it directly abuts the name.

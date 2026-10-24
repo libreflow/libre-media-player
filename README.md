@@ -19,6 +19,22 @@ de la WebView.
 - **Léger** : pas de dépendances exotiques, pas de service en
   arrière-plan ; l'application se ferme quand on la ferme.
 
+## Données stockées localement
+
+Aucune donnée ne quitte votre machine. Pour ses fonctions (reprendre la
+lecture, fichiers récents), l'application écrit dans son répertoire de
+configuration (`%LOCALAPPDATA%\dev.libreflow.libre-media-player` sur
+Windows) :
+
+- `settings.json` — volume, préférences de file (aléatoire/répéter)
+- `recent.json` — les 10 derniers fichiers ouverts
+- `resume.json` — position de lecture et pistes sélectionnées, par
+  fichier ; plafonné aux 100 fichiers les plus récemment regardés (les
+  plus anciens sont effacés automatiquement)
+
+Ces fichiers constituent par nature un historique de visionnage local ;
+supprimez-les pour l'effacer. Aucune télémétrie, aucun envoi réseau.
+
 ## Installation depuis les sources
 
 ```bash
