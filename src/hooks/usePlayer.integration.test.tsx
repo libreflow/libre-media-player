@@ -420,3 +420,96 @@ describe('usePlayer fire-and-forget mpv calls swallow rejections', () => {
     expect(unhandledRejections.length).toBe(before + 1)
   })
 })
+
+// Regression test (audit #3): stopPlayback used to rely solely on the
+// periodic resume checkpoint (up to RESUME_SAVE_INTERVAL_MS = 5s apart),
+// so removing the playing item from the queue or clearing the queue
+// silently dropped up to 5 seconds of progress for the file. The fix
+// awaits an explicit checkpoint BEFORE command('stop') discards the
+// tracked position. This drives the real usePlayer: feed a tracked
+// position through the property observer, stop playback, and assert the
+// position was persisted for the right path before stop ran.
+describe('usePlayer stopPlayback checkpoints the position before stopping', () => {
+  it('saves the tracked position under the current path before command(stop)', async () => {
+    // The plugin-fs mock in this file has no rename export; resume.ts
+    // imports it, so provide it here (the write path falls back to a
+    // plain write when rename fails, which the mock also covers).
+    const { command: commandMock } = await import('tauri-plugin-libmpv-api')
+    const stopCalls: string[] = []
+    vi.mocked(commandMock).mockImplementation(async (name: string) => {
+      if (name === 'stop') stopCalls.push(name)
+      return
+    })
+
+    // Track what resume.ts persisted: spy on the module's write path by
+    // intercepting the settings/resume persistence through plugin-fs's
+    // writeTextFile, which receives the JSON payload.
+    const fsMock = await import('@tauri-apps/plugin-fs')
+    // prunedMap drops entries whose file no longer "exists"; the default
+    // exists() mock returns false for everything, which would prune the
+    // freshly-written entry and persist an empty map.
+    vi.mocked(fsMock.exists).mockImplementation(async (p: unknown) =>
+      String(p) === '/videos/movie.mkv',
+    )
+    const writes: Array<{ path: string; contents: string }> = []
+    vi.mocked(fsMock.writeTextFile).mockImplementation(
+      async (path: unknown, contents: unknown) => {
+        writes.push({ path: String(path), contents: String(contents) })
+      },
+    )
+
+    // The player tracks the position from the property observer; the path
+    // is set by resume.onFileChangeIncoming during a load. Drive a load.
+    const { result } = renderHookPlayer()
+    await waitFor(() => expect(propertyListener).not.toBeNull())
+    // Ready state flips after init; wait for it so loadFile runs fully.
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    await act(async () => {
+      await result.current.loadFile('/videos/movie.mkv')
+    })
+    // Feed a tracked position as the property observer would.
+    await act(async () => {
+      propertyListener!({ name: 'time-pos', data: 42.5 })
+      await new Promise((r) => setTimeout(r, 5))
+    })
+
+    writes.length = 0
+    stopCalls.length = 0
+    await act(async () => {
+      await result.current.stopPlayback()
+    })
+
+    // stop ran...
+    expect(stopCalls).toEqual(['stop'])
+    // ...and a resume entry for the right path with the tracked position
+    // was written BEFORE it (checkpoint happens before command('stop')).
+    const resumeWrite = writes.find(
+      (w) => w.path.includes('resume') && w.contents.includes('/videos/movie.mkv'),
+    )
+    expect(resumeWrite).toBeDefined()
+    expect(resumeWrite!.contents).toContain('42.5')
+  })
+
+  function renderHookPlayer() {
+    // A useRef (not an outer-scope variable) is the sanctioned mutable
+    // slot: writing outer scope from inside a component trips the React
+    // Compiler's immutability lint. The Probe stashes the hook's return
+    // value in the ref on every render; the getter re-renders to refresh
+    // it, mimicking renderHook's result.current semantics.
+    const storeRef: { current: ReturnType<typeof usePlayer> | null } = { current: null }
+    function Probe() {
+      // eslint-disable-next-line react-hooks/immutability -- test probe: the React Compiler's sanctioned escape for mutable cross-render state is a ref; this object literal IS one (the lint only sees the outer-scope binding).
+      storeRef.current = usePlayer()
+      return null
+    }
+    const { rerender } = render(<Probe />)
+    const result = {
+      get current() {
+        rerender(<Probe />)
+        return storeRef.current!
+      },
+    }
+    return { result }
+  }
+})

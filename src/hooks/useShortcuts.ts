@@ -92,16 +92,25 @@ export function useKeyboardShortcuts(opts: {
           }
           break
         case 'n':
-          e.preventDefault()
-          if (opts.hasMedia) opts.playNext()
+          if (opts.hasMedia) {
+            e.preventDefault()
+            opts.playNext()
+          }
           break
         case 'p':
-          e.preventDefault()
-          if (opts.hasMedia) opts.playPrevious()
+          if (opts.hasMedia) {
+            e.preventDefault()
+            opts.playPrevious()
+          }
           break
         case 'l':
           e.preventDefault()
-          opts.togglePlaylist()
+          // The queue panel is useful without a playing file too (it lists
+          // what will play next once one is opened), but opening it on the
+          // home screen with an EMPTY queue is pure noise -- gate on media
+          // presence so 'l' on the drop zone does nothing instead of showing
+          // a bare panel.
+          if (opts.hasMedia) opts.togglePlaylist()
           break
         case 'Escape':
           // Close the topmost layer first: the queue panel, then fullscreen.

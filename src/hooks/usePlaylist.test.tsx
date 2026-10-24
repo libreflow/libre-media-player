@@ -491,3 +491,73 @@ describe('usePlaylist fire-and-forget stopPlayback swallows rejections', () => {
     expect(unhandledRejections.length).toBe(before + 1)
   })
 })
+
+// Regression tests (audit #3):
+// - removeAt used to update only the queue ref synchronously; indexRef was
+//   left stale until the next render, so a same-tick end-file event (EOF
+//   racing a removal) computed auto-advance off the removed item's index.
+//   The ref sync is not directly observable, so the test drives the real
+//   end-file listener right after removeAt -- before any commit -- and
+//   asserts it advances from the POST-removal index.
+describe('usePlaylist removeAt indexRef sync (audit #3)', () => {
+  it('an end-file event in the same tick as removeAt advances from the post-removal index', async () => {
+    const { result } = await setupWithQueue()
+    // Queue: [a, b, c, d], playing index 2 (c). removeAt(1) and the EOF
+    // event fire in the SAME synchronous tick -- before React commits and
+    // the render-time ref sync repairs indexRef. playNext must read the
+    // value removeAt synchronized (1) and advance to 2 (d); with the old
+    // code the stale ref (2) made it advance to 3, out of bounds.
+    act(() => {
+      result.current.removeAt(1) // remove b, index shifts to 1 (c)
+      mpvEventsCb!({ event: 'end-file', reason: 'eof' })
+    })
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    expect(result.current.currentIndex).toBe(2)
+    expect(result.current.queue[result.current.currentIndex]?.name).toBe('d.mkv')
+  })
+
+  async function setupWithQueue() {
+    const loadFile = vi.fn(async () => {})
+    const { result } = renderHook(() =>
+      usePlaylist({ ready: true, loadFile, onError: vi.fn() }),
+    )
+    await act(async () => {
+      result.current.append(['/v/a.mkv', '/v/b.mkv', '/v/c.mkv', '/v/d.mkv'])
+    })
+    // append on an empty queue starts playing index 0; jump to index 2.
+    await act(async () => {
+      await result.current.playIndex(2)
+    })
+    return { result, loadFile }
+  }
+})
+
+// Regression test (audit #3): toggleShuffle/toggleRepeat used to run
+// updateSettings INSIDE the state updater function. React may invoke an
+// updater twice (StrictMode double-invoke), persisting twice per toggle.
+// The fixed version computes the value outside the updater and persists
+// exactly once per call.
+describe('usePlaylist toggle persistence side effects (audit #3)', () => {
+  it('persists exactly once per toggle even when React double-invokes updaters', async () => {
+    updateSettingsMock.mockClear()
+    settingsState = { shuffle: true }
+    const loadFile = vi.fn(async () => {})
+    const { result } = renderHook(() =>
+      usePlaylist({ ready: true, loadFile, onError: vi.fn() }),
+    )
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    updateSettingsMock.mockClear()
+    await act(async () => {
+      result.current.toggleShuffle() // true -> false
+    })
+    expect(result.current.shuffle).toBe(false)
+    // Exactly one persistence call per user toggle, not one per updater
+    // invocation: the side effect must live outside the updater.
+    expect(updateSettingsMock).toHaveBeenCalledTimes(1)
+    expect(updateSettingsMock).toHaveBeenCalledWith({ shuffle: false })
+  })
+})
