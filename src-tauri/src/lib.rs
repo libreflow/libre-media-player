@@ -146,6 +146,10 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        // Auto-update (roadmap #63): release-please already cuts GitHub
+        // releases; the updater plugin lets the installed app check them
+        // and self-update. Endpoint/keys live in tauri.conf.json.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_libmpv::init())
         .manage(InitialFile(Mutex::new(initial_file)))
         .invoke_handler(tauri::generate_handler![

@@ -42,6 +42,16 @@ export function useKeyboardShortcuts(opts: {
   // directly, which never ran updateSettings -- a keyboard-adjusted volume
   // was silently lost on restart.
   setVolume: (v: number) => void
+  // Subtitle delay nudge in seconds (roadmap #59): z = earlier, Z (shift+z)
+  // = later, matching mpv's own default bindings. Both fire on the same
+  // physical key so keyboard layouts stay irrelevant.
+  adjustSubDelay: (delta: number) => void
+  // Audio delay nudge in seconds (roadmap #58): the [ and ] physical keys,
+  // matching mpv's own default bindings for audio-delay up/down.
+  adjustAudioDelay: (delta: number) => void
+  // Screenshot capture (roadmap #60). The KeyC physical key: 's' is already
+  // the subtitle toggle here and Control+S is reserved by the OS/browser.
+  takeScreenshot: () => void
 }) {
   const optsRef = useRef(opts)
   // Keep the ref in sync inside an effect (not during render) so the
@@ -73,7 +83,11 @@ export function useKeyboardShortcuts(opts: {
       // matching is layout-independent by construction. Ignore chords so
       // an OS/extension modifier shortcut is never hijacked.
       if (e.ctrlKey || e.altKey || e.metaKey) return
-      switch (letterShortcut(e) ?? e.key) {
+      // Shift widens the letter shortcut alphabet without extra physical keys
+      // (e.g. z = subtitles earlier, Z = subtitles later); physical-key
+      // matching below keeps both layout-independent.
+      const letter = letterShortcut(e)
+      switch (letter != null ? `${e.shiftKey ? letter.toUpperCase() : letter}` : e.key) {
         case ' ':
         case 'k':
           e.preventDefault()
@@ -89,6 +103,25 @@ export function useKeyboardShortcuts(opts: {
           if (opts.hasMedia) {
             e.preventDefault()
             opts.toggleSubtitles()
+          }
+          break
+        case 'z':
+          if (opts.hasMedia) {
+            e.preventDefault()
+            // mpv semantics: sub-delay -0.1 moves subs earlier.
+            opts.adjustSubDelay(-0.1)
+          }
+          break
+        case 'Z':
+          if (opts.hasMedia) {
+            e.preventDefault()
+            opts.adjustSubDelay(0.1)
+          }
+          break
+        case 'c':
+          if (opts.hasMedia) {
+            e.preventDefault()
+            opts.takeScreenshot()
           }
           break
         case 'n':
@@ -139,6 +172,18 @@ export function useKeyboardShortcuts(opts: {
           if (opts.hasMedia) {
             e.preventDefault()
             opts.setVolume(Math.max(0, opts.volume - 5))
+          }
+          break
+        case '[':
+          if (opts.hasMedia) {
+            e.preventDefault()
+            opts.adjustAudioDelay(0.1)
+          }
+          break
+        case ']':
+          if (opts.hasMedia) {
+            e.preventDefault()
+            opts.adjustAudioDelay(-0.1)
           }
           break
       }

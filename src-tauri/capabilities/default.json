@@ -14,23 +14,47 @@
     "opener:allow-open-url",
     {
       "identifier": "fs:allow-read-text-file",
-      "allow": [{ "path": "$APPCONFIG/*" }]
+      "allow": [
+        {
+          "path": "$APPCONFIG/*"
+        }
+      ]
     },
     {
       "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "$APPCONFIG/*" }]
+      "allow": [
+        {
+          "path": "$APPCONFIG/*"
+        }
+      ]
     },
     {
       "identifier": "fs:allow-rename",
-      "allow": [{ "path": "$APPCONFIG/*" }]
+      "allow": [
+        {
+          "path": "$APPCONFIG/*"
+        }
+      ]
     },
     {
       "identifier": "fs:allow-mkdir",
-      "allow": [{ "path": "$APPCONFIG" }, { "path": "$APPCONFIG/*" }]
+      "allow": [
+        {
+          "path": "$APPCONFIG"
+        },
+        {
+          "path": "$APPCONFIG/*"
+        }
+      ]
     },
     {
       "identifier": "fs:allow-exists",
-      "allow": [{ "path": "**" }]
-    }
+      "allow": [
+        {
+          "path": "**"
+        }
+      ]
+    },
+    "updater:default"
   ]
 }

@@ -54,6 +54,9 @@ function Harness({ onSnapshot }: { onSnapshot: (s: { panelOpen: boolean }) => vo
     togglePlaylist: () => setPanelOpen(!panelOpen),
     seekBy: () => {},
     setVolume: () => {},
+    adjustSubDelay: () => {},
+    adjustAudioDelay: () => {},
+    takeScreenshot: () => {},
   })
 
   onSnapshot({ panelOpen })
@@ -104,6 +107,9 @@ describe('useKeyboardShortcuts', () => {
         togglePlaylist,
         seekBy: () => {},
         setVolume: () => {},
+        adjustSubDelay: () => {},
+        adjustAudioDelay: () => {},
+        takeScreenshot: () => {},
       })
       return null
     }
@@ -128,6 +134,9 @@ describe('useKeyboardShortcuts', () => {
         togglePlaylist,
         seekBy: () => {},
         setVolume: () => {},
+        adjustSubDelay: () => {},
+        adjustAudioDelay: () => {},
+        takeScreenshot: () => {},
       })
       return null
     }
@@ -156,6 +165,9 @@ describe('useKeyboardShortcuts', () => {
         togglePlaylist: () => {},
         seekBy: () => {},
         setVolume: () => {},
+        adjustSubDelay: () => {},
+        adjustAudioDelay: () => {},
+        takeScreenshot: () => {},
       })
       return null
     }
@@ -181,6 +193,9 @@ describe('useKeyboardShortcuts', () => {
         togglePlaylist,
         seekBy: () => {},
         setVolume: () => {},
+        adjustSubDelay: () => {},
+        adjustAudioDelay: () => {},
+        takeScreenshot: () => {},
       })
       return null
     }
@@ -207,6 +222,9 @@ describe('useKeyboardShortcuts', () => {
         togglePlaylist,
         seekBy: () => {},
         setVolume: () => {},
+        adjustSubDelay: () => {},
+        adjustAudioDelay: () => {},
+        takeScreenshot: () => {},
       })
       return null
     }
@@ -237,6 +255,9 @@ describe('volume shortcuts respect hasMedia', () => {
         togglePlaylist: () => {},
         seekBy: () => {},
         setVolume,
+        adjustSubDelay: () => {},
+        adjustAudioDelay: () => {},
+        takeScreenshot: () => {},
       })
       return null
     }
@@ -262,6 +283,9 @@ describe('volume shortcuts respect hasMedia', () => {
         togglePlaylist: () => {},
         seekBy: () => {},
         setVolume,
+        adjustSubDelay: () => {},
+        adjustAudioDelay: () => {},
+        takeScreenshot: () => {},
       })
       return null
     }
@@ -288,6 +312,9 @@ describe('volume shortcuts respect hasMedia', () => {
         togglePlaylist: () => {},
         seekBy: () => {},
         setVolume,
+        adjustSubDelay: () => {},
+        adjustAudioDelay: () => {},
+        takeScreenshot: () => {},
       })
       return null
     }
@@ -317,6 +344,9 @@ describe('arrow-key seeking', () => {
         togglePlaylist: () => {},
         seekBy,
         setVolume: () => {},
+        adjustSubDelay: () => {},
+        adjustAudioDelay: () => {},
+        takeScreenshot: () => {},
       })
       return null
     }
@@ -344,6 +374,9 @@ describe('arrow-key seeking', () => {
         togglePlaylist: () => {},
         seekBy,
         setVolume: () => {},
+        adjustSubDelay: () => {},
+        adjustAudioDelay: () => {},
+        takeScreenshot: () => {},
       })
       return null
     }
@@ -375,6 +408,9 @@ describe('arrow-key seeking', () => {
         togglePlaylist: () => {},
         seekBy,
         setVolume,
+        adjustSubDelay: () => {},
+        adjustAudioDelay: () => {},
+        takeScreenshot: () => {},
       })
       return (
         <div>
@@ -423,6 +459,9 @@ describe('arrow-key seeking', () => {
         togglePlaylist: () => {},
         seekBy: () => {},
         setVolume: () => {},
+        adjustSubDelay: () => {},
+        adjustAudioDelay: () => {},
+        takeScreenshot: () => {},
       })
       return <input type="range" data-testid="seek" />
     }

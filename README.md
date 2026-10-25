@@ -19,6 +19,32 @@ de la WebView.
 - **Léger** : pas de dépendances exotiques, pas de service en
   arrière-plan ; l'application se ferme quand on la ferme.
 
+## Linux (roadmap — issue #62)
+
+La stack Tauri étant portable, le code compile sur Linux avec le `libmpv`
+système :
+
+```bash
+# Debian/Ubuntu : dépendances natives
+sudo apt-get install -y libglib2.0-dev libgtk-3-dev \
+  libwebkit2gtk-4.1-dev libmpv-dev libmpv2
+npm install
+npm run tauri build -- --debug    # produit AppImage/deb (bundle.targets: all)
+```
+
+L'association de fichiers est déclarée via `bundle.fileAssociations[].mimeType`
+(desktop entry + MIME types installés par Tauri). Le packaging AppImage/deb
+est encore en cours de validation sur les distributions cibles.
+
+## Mise à jour automatique (roadmap — issue #63)
+
+`tauri-plugin-updater` est intégré : l'application vérifie à chaque
+démarrage la présence d'un `latest.json` dans la dernière release GitHub
+et propose l'installation en un clic. **Attention** : la clé publique
+(`plugins.updater.pubkey` dans `src-tauri/tauri.conf.json`) est vide
+pour l'instant — la vérification des signatures sera activée dès que
+les artifacts seront signés (minisign) par le workflow de release.
+
 ## Installation depuis les sources
 
 ```bash

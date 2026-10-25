@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { command } from 'tauri-plugin-libmpv-api'
+import { command, getProperty } from 'tauri-plugin-libmpv-api'
 import { usePlayer } from './hooks/usePlayer'
 import { useKeyboardShortcuts, useFullscreen, useControlsVisibility } from './hooks/useShortcuts'
 import { useFilePicker } from './hooks/useFilePicker'
@@ -7,8 +7,11 @@ import { useFileAssociation } from './hooks/useFileAssociation'
 import { useSubtitles } from './hooks/useSubtitles'
 import { usePlaylist } from './hooks/usePlaylist'
 import { useRecentFiles } from './hooks/useRecentFiles'
+import { useLocale, useUpdateCheck } from './hooks/useAppPrefs'
 import { openDefaultAppsSettings } from './defaultApps'
 import { formatTime } from './utils'
+import { t } from './i18n'
+import { readChapters, type Chapter } from './chapters'
 import { Controls } from './components/Controls'
 import { PlaylistPanel } from './components/PlaylistPanel'
 import './App.css'
@@ -17,8 +20,24 @@ import './App.css'
 const SEEK_OSD_MS = 900
 
 function App() {
+  const { switchLocale } = useLocale()
   const { showControls, onPointerActivity } = useControlsVisibility()
   const [error, setError] = useState<string | null>(null)
+  // Generic OSD for one-shot confirmations (screenshot, update prompt).
+  const [notice, setNotice] = useState<string | null>(null)
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showNotice = useCallback((msg: string, ms = 2500) => {
+    setNotice(msg)
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current)
+    noticeTimerRef.current = setTimeout(() => setNotice(null), ms)
+  }, [])
+  useEffect(() => () => {
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current)
+  }, [])
+  // Chapters of the loaded file (roadmap #61) — read once per successful
+  // load via the player's onFileLoaded callback.
+  const [chapters, setChapters] = useState<Chapter[]>([])
+  const chaptersRef = useRef<Chapter[]>([])
   const onError = useCallback((msg: string) => setError(msg), [])
   const subtitles = useSubtitles(onError)
   // Forward BOTH arguments (path AND loadGeneration): usePlayer invokes
@@ -28,7 +47,20 @@ function App() {
   // dropped the generation silently disabled that guard in production
   // while its unit tests (which passed the generation directly) stayed
   // green.
-  const player = usePlayer((path, loadGeneration) => void subtitles.onFileLoaded(path, loadGeneration))
+  const player = usePlayer((path, loadGeneration) => {
+    void subtitles.onFileLoaded(path, loadGeneration)
+    // Chapter discovery is best-effort: files without chapters (or an mpv
+    // hiccup) simply render a bare seek bar like before.
+    void readChapters((name, format) => getProperty(name, format))
+      .then((chapters) => {
+        chaptersRef.current = chapters ?? []
+        setChapters(chapters ?? [])
+      })
+      .catch(() => {
+        chaptersRef.current = []
+        setChapters([])
+      })
+  })
   const clearPlayerError = player.clearError
   const dismissError = useCallback(() => {
     setError(null)
@@ -105,6 +137,20 @@ function App() {
     if (seekOsdTimerRef.current) clearTimeout(seekOsdTimerRef.current)
   }, [])
 
+  // Auto-update (roadmap #63): a found update shows a clickable notice.
+  const { update, install } = useUpdateCheck(showNotice, onError)
+  useEffect(() => {
+    if (update != null) showNotice(t('updateAvailable', { version: update.version }), 8000)
+  }, [update, showNotice])
+
+  // Screenshot capture (roadmap #60): fire-and-forget with an OSD notice
+  // carrying the destination path.
+  const takeScreenshot = useCallback(() => {
+    player.takeScreenshot()
+      .then((path) => showNotice(t('screenshotTaken', { path })))
+      .catch((e) => onError(t('screenshotFailed', { err: String(e) })))
+  }, [player, showNotice, onError])
+
   useKeyboardShortcuts({
     hasMedia,
     volume: player.volume,
@@ -118,6 +164,9 @@ function App() {
     togglePlaylist: () => playlist.setPanelOpen(!playlist.panelOpen),
     seekBy,
     setVolume: player.setVolume,
+    adjustSubDelay: player.adjustSubDelay,
+    adjustAudioDelay: player.adjustAudioDelay,
+    takeScreenshot,
   })
 
   const onSeekCommit = useCallback((t: number) => {
@@ -142,6 +191,7 @@ function App() {
       {errorToDisplay && (
         <div
           className="error-banner error-banner--overlay"
+          role="alert"
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
         >
@@ -151,7 +201,7 @@ function App() {
               this banner until restart. The retry button re-runs mpv init. */}
           {!player.ready && player.error && (
             <button type="button" className="error-banner__retry" onClick={(e) => { e.stopPropagation(); player.retryInit() }}>
-              Réessayer
+              {t('retry')}
             </button>
           )}
           {/* A load failure doesn't invalidate the player -- let the user
@@ -160,8 +210,8 @@ function App() {
           <button
             type="button"
             className="error-banner__close"
-            aria-label="Fermer le message d'erreur"
-            title="Fermer"
+            aria-label={t('closeErrorMessage')}
+            title={t('close')}
             onClick={(e) => {
               e.stopPropagation()
               dismissError()
@@ -180,7 +230,16 @@ function App() {
         </div>
       )}
       {isDragOver && (
-        <div className="drag-overlay">Déposer un fichier vidéo pour le lire</div>
+        <div className="drag-overlay">{t('dropOverlay')}</div>
+      )}
+      {notice && (
+        <div
+          className="seek-osd"
+          role="status"
+          onClick={update != null ? (e) => { e.stopPropagation(); void install() } : undefined}
+        >
+          {notice}
+        </div>
       )}
 
       {!hasMedia && (
@@ -195,7 +254,7 @@ function App() {
             <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#lmp-logo-grad)" />
             <path d="M26 20l20 12-20 12z" fill="#fff" />
           </svg>
-          <div className="drop-zone__title">Libre Media Player</div>
+          <div className="drop-zone__title">{t('appName')}</div>
           <button
             type="button"
             className="open-btn"
@@ -205,13 +264,13 @@ function App() {
               void openFile()
             }}
           >
-            {player.ready ? 'Ouvrir une vidéo…' : 'Initialisation du lecteur…'}
+            {player.ready ? t('openVideo') : t('initializing')}
           </button>
-          <div className="drop-zone__hint">…ou glissez-déposez vos fichiers ici</div>
+          <div className="drop-zone__hint">{t('dropHint')}</div>
           {recents.length > 0 && (
             <div className="recents">
               <div className="recents__header">
-                <span className="recents__title">Récemment ouverts</span>
+                <span className="recents__title">{t('recentsTitle')}</span>
                 <button
                   type="button"
                   className="recents__clear"
@@ -220,7 +279,7 @@ function App() {
                     clearRecents()
                   }}
                 >
-                  Effacer
+                  {t('recentsClear')}
                 </button>
               </div>
               <ul className="recents__list">
@@ -298,6 +357,8 @@ function App() {
         timePos={player.timePos}
         duration={player.duration}
         visible={showControls || !hasMedia}
+        chapters={chapters}
+        onSwitchLocale={switchLocale}
       />
     </div>
   )

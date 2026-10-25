@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { t } from '../../i18n'
 import { MAX_VOLUME } from '../../utils'
 
 interface VolumeControlProps {
@@ -27,8 +28,8 @@ export function VolumeControl({ volume, setVolume }: VolumeControlProps) {
         type="button"
         className="icon-btn volume-icon"
         onClick={toggleMute}
-        aria-label={muted ? 'Réactiver le son' : 'Couper le son'}
-        title={muted ? 'Réactiver le son' : 'Couper le son'}
+        aria-label={muted ? t('unmute') : t('mute')}
+        title={muted ? t('unmute') : t('mute')}
       >
         {muted ? (
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
@@ -55,6 +56,7 @@ export function VolumeControl({ volume, setVolume }: VolumeControlProps) {
         max={MAX_VOLUME}
         value={volume}
         onChange={(e) => setVolume(Number(e.target.value))}
+        aria-valuetext={`${volume}%`}
         style={{ '--fill': fillPercent } as React.CSSProperties}
       />
     </div>

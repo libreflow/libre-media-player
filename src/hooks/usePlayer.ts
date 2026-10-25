@@ -9,6 +9,8 @@ import {
   type MpvObservableProperty,
 } from 'tauri-plugin-libmpv-api'
 import { loadSettings, updateSettings } from '../settings'
+import { describeLoadError } from '../mpvErrors'
+import { screenshotPath } from '../screenshot'
 import { useResumePosition } from './useResumePosition'
 
 const OBSERVED_PROPERTIES = [
@@ -42,6 +44,19 @@ export function usePlayer(
   setTimePos: (t: number) => void
   togglePause: () => void
   setVolume: (v: number) => void
+  // mpv's audio-delay property (seconds, negative = audio earlier). Kept in
+  // state so the UI can display the current compensation.
+  adjustAudioDelay: (delta: number) => void
+  audioDelay: number
+  // mpv's sub-delay property (seconds). Positive delays subtitles.
+  adjustSubDelay: (delta: number) => void
+  subDelay: number
+  // Captures the displayed frame (subtitles included) to a PNG next to
+  // the video (roadmap #60). Returns the destination path so the caller
+  // can show a confirmation OSD.
+  takeScreenshot: () => Promise<string>
+  // Stops playback and clears the current file, returning the player to
+  // its empty state.
   stopPlayback: () => Promise<void>
   // Re-runs mpv init after a failure (clears the rejected init promise).
   // Exposed so the UI can offer a "Réessayer" button on the error banner.
@@ -59,6 +74,8 @@ export function usePlayer(
   const [timePos, setTimePos] = useState<number | null>(null)
   const [duration, setDuration] = useState<number | null>(null)
   const [volume, setVolumeState] = useState(100)
+  const [audioDelay, setAudioDelayState] = useState(0)
+  const [subDelay, setSubDelayState] = useState(0)
   const seekingRef = useRef(false)
   const readyRef = useRef(false)
   const pausedRef = useRef(true)
@@ -314,6 +331,11 @@ export function usePlayer(
       // the new file's first events landed.
       setDuration(null)
       setTimePos(null)
+      // A/V and subtitle delay compensation are per-file diagnostics, not a
+      // preference: mpv resets them on loadfile, so mirroring that reset in
+      // React state keeps the UI honest (roadmap #55/#59).
+      setAudioDelayState(0)
+      setSubDelayState(0)
       // mpv starts playback automatically on loadfile; read the REAL state
       // back instead of assuming one, since observeProperties only fires on
       // CHANGE and never emits if our guess already matched reality.
@@ -362,7 +384,7 @@ export function usePlayer(
       }
       onFileLoadedRef.current?.(path, loadGenerationRef.current)
     } catch (e) {
-      setError(`Impossible de lire ce fichier : ${String(e)}`)
+      setError(describeLoadError(e))
       // Re-throw so callers (playlist playIndex) can detect the failure;
       // the UI error is already surfaced via setError above.
       throw e
@@ -390,6 +412,20 @@ export function usePlayer(
     loadChainRef.current = run.catch(() => {})
     return run
   }, [loadFileInner])
+
+  // Audio/sub delay compensation (roadmap #55/#58/#59). mpv's properties
+  // are the single source of truth; React state mirrors them for display.
+  // Applied with += semantics (mpv accepts additive assignments like
+  // "audio-delay +0.1" through setProperty as a plain string value).
+  const adjustAudioDelay = useCallback((delta: number) => {
+    setAudioDelayState((d) => d + delta)
+    void command('add', ['audio-delay', delta]).catch(() => {})
+  }, [])
+
+  const adjustSubDelay = useCallback((delta: number) => {
+    setSubDelayState((d) => d + delta)
+    void command('add', ['sub-delay', delta]).catch(() => {})
+  }, [])
 
   const togglePause = useCallback(() => {
     const next = !pausedRef.current
@@ -422,6 +458,19 @@ export function usePlayer(
     loadGenerationRef.current += 1
     await command('stop')
   }, [resume])
+
+  // Screenshot capture: mpv refuses to overwrite an existing file and
+  // errors on a collision, so the destination name is computed from the
+  // set of PNGs that already exist next to the video.
+  const screenshotTakenRef = useRef(new Set<string>())
+  const takeScreenshot = useCallback(async (): Promise<string> => {
+    const videoPath = currentPathRef.current
+    if (!videoPath) throw new Error('aucune vidéo en lecture')
+    const dest = screenshotPath(videoPath, screenshotTakenRef.current)
+    await command('screenshot-to-file', [dest, 'subtitles'])
+    screenshotTakenRef.current.add(dest.toLowerCase())
+    return dest
+  }, [])
 
   // Debounced persistence for the volume: the slider fires setVolume on
   // every input event during a drag (~60/s), and persisting on each call
@@ -457,7 +506,12 @@ export function usePlayer(
     setTimePos,
     togglePause,
     setVolume,
+    adjustAudioDelay,
+    audioDelay,
+    adjustSubDelay,
+    subDelay,
     stopPlayback,
+    takeScreenshot,
     retryInit,
     clearError,
   }
