@@ -9,6 +9,7 @@ import {
   type MpvObservableProperty,
 } from 'tauri-plugin-libmpv-api'
 import { loadSettings, updateSettings } from '../settings'
+import { userFacingMessage } from '../errors'
 import { useResumePosition } from './useResumePosition'
 
 const OBSERVED_PROPERTIES = [
@@ -240,7 +241,7 @@ export function usePlayer(
     })
     void doInit(signal).catch((e) => {
       if (signal.cancelled) return
-      setError(`Échec d'initialisation du lecteur : ${String(e)}`)
+      setError(userFacingMessage("Échec d'initialisation du lecteur.", e).message)
     })
   }, [doInit])
 
@@ -362,7 +363,7 @@ export function usePlayer(
       }
       onFileLoadedRef.current?.(path, loadGenerationRef.current)
     } catch (e) {
-      setError(`Impossible de lire ce fichier : ${String(e)}`)
+      setError(userFacingMessage('Impossible de lire ce fichier.', e).message)
       // Re-throw so callers (playlist playIndex) can detect the failure;
       // the UI error is already surfaced via setError above.
       throw e
