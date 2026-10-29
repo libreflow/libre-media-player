@@ -34,10 +34,13 @@ struct InitialFile(Mutex<Option<String>>);
 // and re-request it -- `.take()` would have cleared it and silently lost
 // the file on that second request.
 #[tauri::command]
-async fn get_initial_file(state: tauri::State<'_, InitialFile>) -> Option<String> {
+// Async per the repo's Tauri 2 rules -- and async commands taking a
+// reference input (State<'_,>) must return Result (Tauri's macro
+// requires it to encode the borrow into the returned IPC message).
+async fn get_initial_file(state: tauri::State<'_, InitialFile>) -> Result<Option<String>, String> {
     // A poisoned mutex (a panic while holding it elsewhere) must not take
     // the whole IPC down -- report "no initial file" instead.
-    state.0.lock().ok().and_then(|g| g.clone())
+    Ok(state.0.lock().ok().and_then(|g| g.clone()))
 }
 
 // Opens Windows' Default Apps settings page, scoped directly to Libre Media
