@@ -31,6 +31,7 @@ describe('SeekBar smoothing', () => {
         onSeekCommit={() => {}}
         paused
         visible
+        chapters={[]}
       />,
     )
     const input = container.querySelector('input') as HTMLInputElement
@@ -49,6 +50,7 @@ describe('SeekBar smoothing', () => {
         onSeekCommit={() => {}}
         paused
         visible
+        chapters={[]}
       />,
     )
     const input = container.querySelector('input') as HTMLInputElement
@@ -67,6 +69,7 @@ describe('SeekBar smoothing', () => {
         onSeekCommit={onSeekCommit}
         paused
         visible
+        chapters={[]}
       />,
     )
     const input = container.querySelector('input') as HTMLInputElement
@@ -92,6 +95,7 @@ describe('SeekBar smoothing', () => {
         onSeekCommit={onSeekCommit}
         paused
         visible={false}
+        chapters={[]}
       />,
     )
     const input = container.querySelector('input') as HTMLInputElement
@@ -130,6 +134,7 @@ describe('SeekBar smoothing', () => {
         onSeekChange={() => {}}
         onSeekCommit={() => {}}
         paused={false}
+        chapters={[]}
         visible
       />,
     )
@@ -174,6 +179,7 @@ describe('SeekBar smoothing', () => {
         onSeekChange={() => {}}
         onSeekCommit={() => {}}
         paused={false}
+        chapters={[]}
         visible
       />,
     )
@@ -193,6 +199,7 @@ describe('SeekBar smoothing', () => {
         onSeekChange={() => {}}
         onSeekCommit={() => {}}
         paused={false}
+        chapters={[]}
         visible
       />,
     )

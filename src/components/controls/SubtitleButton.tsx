@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { t as translate } from '../../i18n'
 import type { MpvTrack } from '../../subtitles'
 
 interface SubtitleButtonProps {
@@ -46,8 +47,9 @@ export function SubtitleButton({
           className={`icon-btn${subtitlesVisible ? ' is-active' : ''}`}
           disabled={!subtitlesAvailable}
           onClick={onToggleSubtitles}
-          aria-label={subtitlesVisible ? 'Masquer les sous-titres' : 'Afficher les sous-titres'}
-          title={subtitlesAvailable ? 'Sous-titres (s) — le chevron permet de choisir la piste' : 'Aucun sous-titre trouvé'}
+          aria-label={subtitlesVisible ? translate('hideSubtitles') : translate('showSubtitles')}
+          aria-pressed={subtitlesVisible}
+          title={subtitlesAvailable ? `${translate('subtitles')} (s)` : translate('noSubtitles')}
         >
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm-2-4H10v-2h8v2z" />
@@ -61,9 +63,10 @@ export function SubtitleButton({
               e.stopPropagation()
               setOpen((v) => !v)
             }}
-            aria-label="Choisir la piste de sous-titres"
+            aria-label={translate('chooseSubtrack')}
             aria-expanded={open}
-            title="Choisir la piste de sous-titres"
+            title={translate('chooseSubtrack')}
+            aria-haspopup="menu"
           >
             <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
               <path d="M7 10l5 5 5-5z" />
@@ -74,10 +77,12 @@ export function SubtitleButton({
       {open && hasTracks && (
         <div
           className="track-menu__panel"
+          role="menu"
+          aria-label={translate('subtitles')}
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
         >
-          <div className="track-menu__title">Sous-titres</div>
+          <div className="track-menu__title">{translate('subtitles')}</div>
           <button
             type="button"
             className={`track-menu__item${disabledSelected ? ' is-selected' : ''}`}
@@ -93,6 +98,8 @@ export function SubtitleButton({
               key={`sub-${t.id}`}
               type="button"
               className={`track-menu__item${t.selected && !disabledSelected ? ' is-selected' : ''}`}
+              role="menuitemradio"
+              aria-checked={t.selected && !disabledSelected}
               onClick={() => {
                 onSelectSubtrack(t.id)
                 setOpen(false)

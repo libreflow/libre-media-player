@@ -12,6 +12,27 @@ import {
   subtitleTracks,
   type MpvTrack,
 } from '../subtitles'
+import { loadSettings, updateSettings } from '../settings'
+
+// Applies the user's preferred audio language (roadmap #58) to the given
+// track list: selects the first track whose mpv lang code matches the
+// preference. 'any' (default) leaves mpv's own selection untouched. Pure
+// and unit-testable.
+export function pickPreferredAudioTrack(
+  tracks: MpvTrack[],
+  preferredLang: string,
+): MpvTrack | null {
+  if (preferredLang === 'any' || preferredLang === '') return null
+  if (preferredLang.length >= 2) {
+    const family = preferredLang.slice(0, 2).toLowerCase()
+    // 'fr' matches 'fr', 'fra' and 'fre' (ISO 639-1 vs 639-2 codes for
+    // the same language); a 3-letter preference matches the same family.
+    const sameFamily = (lang: string) => lang.toLowerCase().startsWith(family)
+    return tracks.find((t) => t.lang === preferredLang) ??
+      tracks.find((t) => t.lang != null && sameFamily(t.lang)) ?? null
+  }
+  return null
+}
 import { userFacingMessage } from '../errors'
 
 // Auto-loads a sidecar subtitle file (same name as the video, or with a
@@ -101,6 +122,19 @@ export function useSubtitles(onError?: (msg: string) => void) {
           if (superseded()) return
         }
       }
+      // Preferred audio language (roadmap #58): once the track lists are
+      // fresh, nudge mpv toward the user's saved language if the file has a
+      // matching track. Best-effort -- a file without the preferred track
+      // keeps mpv's default selection.
+      try {
+        const audio = await audioTracks()
+        if (superseded()) return
+        const { preferredAudioLang } = await loadSettings()
+        const preferred = pickPreferredAudioTrack(audio, preferredAudioLang)
+        if (preferred) await setAudioTrack(preferred.id)
+      } catch {
+        // best-effort; mpv's default track selection applies
+      }
       await refreshTracks(superseded)
     } catch {
       if (superseded()) return
@@ -183,6 +217,15 @@ export function useSubtitles(onError?: (msg: string) => void) {
   const selectAudioTrack = useCallback(async (id: number) => {
     try {
       await setAudioTrack(id)
+      // Persist the chosen track's language as the new preference (roadmap
+      // #58) so future files auto-select it when available. Tracks without
+      // a lang code can't produce a preference; 'any' means no preference.
+      try {
+        const track = (await audioTracks()).find((t) => t.id === id)
+        if (track?.lang) await updateSettings({ preferredAudioLang: track.lang })
+      } catch {
+        // best-effort persistence
+      }
       void refreshTracks()
     } catch (e) {
       onError?.(userFacingMessage('Impossible de sélectionner cette piste audio.', e).message)

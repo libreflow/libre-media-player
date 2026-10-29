@@ -33,28 +33,47 @@
     ],
     "fileAssociations": [
       {
-        "ext": ["mp4", "m4v", "mov"],
+        "ext": [
+          "mp4",
+          "m4v",
+          "mov"
+        ],
         "name": "Vidéo MP4 QuickTime",
         "description": "Fichier vidéo",
-        "role": "Viewer"
+        "role": "Viewer",
+        "mimeType": "video/mp4"
       },
       {
-        "ext": ["mkv", "webm"],
+        "ext": [
+          "mkv",
+          "webm"
+        ],
         "name": "Vidéo Matroska WebM",
         "description": "Fichier vidéo",
-        "role": "Viewer"
+        "role": "Viewer",
+        "mimeType": "video/x-matroska"
       },
       {
-        "ext": ["avi"],
+        "ext": [
+          "avi"
+        ],
         "name": "Vidéo AVI",
         "description": "Fichier vidéo",
-        "role": "Viewer"
+        "role": "Viewer",
+        "mimeType": "video/x-matroska"
       },
       {
-        "ext": ["flv", "wmv", "ts", "mpg", "mpeg"],
+        "ext": [
+          "flv",
+          "wmv",
+          "ts",
+          "mpg",
+          "mpeg"
+        ],
         "name": "Vidéo",
         "description": "Fichier vidéo",
-        "role": "Viewer"
+        "role": "Viewer",
+        "mimeType": "video/x-matroska"
       }
     ],
     "icon": [
@@ -71,6 +90,16 @@
     },
     "android": {
       "debugApplicationIdSuffix": ".debug"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "dialog": false,
+      "endpoints": [
+        "https://github.com/libreflow/libre-media-player/releases/latest/download/latest.json"
+      ],
+      "pubkey": ""
     }
   }
 }
