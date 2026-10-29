@@ -11,6 +11,7 @@ import {
 import { loadSettings, updateSettings } from '../settings'
 import { describeLoadError } from '../mpvErrors'
 import { screenshotPath } from '../screenshot'
+import { userFacingMessage } from '../errors'
 import { useResumePosition } from './useResumePosition'
 
 const OBSERVED_PROPERTIES = [
@@ -257,7 +258,7 @@ export function usePlayer(
     })
     void doInit(signal).catch((e) => {
       if (signal.cancelled) return
-      setError(`Échec d'initialisation du lecteur : ${String(e)}`)
+      setError(userFacingMessage("Échec d'initialisation du lecteur.", e).message)
     })
   }, [doInit])
 

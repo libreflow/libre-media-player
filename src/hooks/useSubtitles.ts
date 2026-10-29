@@ -33,6 +33,7 @@ export function pickPreferredAudioTrack(
   }
   return null
 }
+import { userFacingMessage } from '../errors'
 
 // Auto-loads a sidecar subtitle file (same name as the video, or with a
 // common language tag) when a file is opened, and exposes a visible/hidden
@@ -177,7 +178,7 @@ export function useSubtitles(onError?: (msg: string) => void) {
       // like every other user-triggered action in the app (openFile,
       // togglePause, playlist ops) instead of letting an
       // unhandled rejection escape from `void subtitles.toggle()` in App.tsx.
-      onError?.(`Sous-titres indisponibles : ${String(e)}`)
+      onError?.(userFacingMessage('Les sous-titres sont indisponibles.', e).message)
     }
   }, [onError, refreshTracks])
 
@@ -199,7 +200,7 @@ export function useSubtitles(onError?: (msg: string) => void) {
       // Same reasoning as toggle() above: a user-triggered action must
       // surface its failure via onError, not escape as an unhandled
       // rejection from `void subtitles.selectSubtrack(id)` in App.tsx.
-      onError?.(`Sélection du sous-titre impossible : ${String(e)}`)
+      onError?.(userFacingMessage('Impossible de sélectionner ce sous-titre.', e).message)
     }
   }, [refreshTracks, onError])
 
@@ -209,7 +210,7 @@ export function useSubtitles(onError?: (msg: string) => void) {
       setVisible(false)
       void refreshTracks()
     } catch (e) {
-      onError?.(`Désactivation des sous-titres impossible : ${String(e)}`)
+      onError?.(userFacingMessage('Impossible de désactiver les sous-titres.', e).message)
     }
   }, [refreshTracks, onError])
 
@@ -227,7 +228,7 @@ export function useSubtitles(onError?: (msg: string) => void) {
       }
       void refreshTracks()
     } catch (e) {
-      onError?.(`Sélection de la piste audio impossible : ${String(e)}`)
+      onError?.(userFacingMessage('Impossible de sélectionner cette piste audio.', e).message)
     }
   }, [refreshTracks, onError])
 

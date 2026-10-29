@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render } from '@testing-library/react'
+import { act, cleanup, render } from '@testing-library/react'
 import { SeekBar } from './SeekBar'
 
 // The seek bar extrapolates playback position between mpv's time-pos ticks
@@ -103,5 +103,114 @@ describe('SeekBar smoothing', () => {
     // (no onChange, seekingRef untouched), then the key is released.
     pressKey(input, 'ArrowRight')
     expect(onSeekCommit).not.toHaveBeenCalled()
+  })
+
+  // Regression test for the frozen-bar bug: extrapolation must be CUMULATIVE
+  // across rAF frames (each frame builds on the previous frame's display
+  // value), not recomputed from the raw timePos each frame -- mpv only
+  // ticks time-pos about once per second, so a per-frame recompute only
+  // ever advanced the bar by one frame-delta between ticks and the bar
+  // stayed essentially frozen instead of gliding.
+  it('advances cumulatively across rAF frames between mpv ticks', async () => {
+    vi.useFakeTimers()
+    const rafCallbacks: FrameRequestCallback[] = []
+    vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((cb: FrameRequestCallback) => {
+        rafCallbacks.push(cb)
+        return rafCallbacks.length
+      })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
+    const performanceSpy = vi
+      .spyOn(window.performance, 'now')
+      .mockReturnValue(0)
+
+    const seekingRef = { current: false }
+    const { container } = render(
+      <SeekBar
+        timePos={10}
+        duration={100}
+        seekingRef={seekingRef}
+        onSeekChange={() => {}}
+        onSeekCommit={() => {}}
+        paused={false}
+        chapters={[]}
+        visible
+      />,
+    )
+    const input = container.querySelector('input') as HTMLInputElement
+    expect(Number(input.value)).toBe(10)
+
+    // Simulate 30 rAF frames of ~16.7ms each -- no new timePos prop (mpv
+    // hasn't ticked). The displayed position must advance by ~0.5s total,
+    // not by one frame's ~0.017s.
+    let now = 0
+    for (let i = 0; i < 30; i++) {
+      now += 16.7
+      performanceSpy.mockReturnValue(now)
+      const cb = rafCallbacks.shift()!
+      act(() => cb(now))
+    }
+    const after = Number(input.value)
+    expect(after).toBeGreaterThan(10.4)
+    expect(after).toBeLessThanOrEqual(10.6)
+
+    vi.useRealTimers()
+  })
+
+  // A fresh timePos from mpv must resynchronize the displayed position
+  // (the observer's value wins over the extrapolation).
+  it('resyncs to a new raw timePos between frames', async () => {
+    vi.useFakeTimers()
+    const rafCallbacks: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
+      rafCallbacks.push(cb)
+      return rafCallbacks.length
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
+    const performanceSpy = vi.spyOn(window.performance, 'now').mockReturnValue(0)
+
+    const seekingRef = { current: false }
+    const { container, rerender } = render(
+      <SeekBar
+        timePos={10}
+        duration={100}
+        seekingRef={seekingRef}
+        onSeekChange={() => {}}
+        onSeekCommit={() => {}}
+        paused={false}
+        chapters={[]}
+        visible
+      />,
+    )
+    const input = container.querySelector('input') as HTMLInputElement
+
+    let now = 0
+    now += 100
+    performanceSpy.mockReturnValue(now)
+    act(() => rafCallbacks.shift()!(now))
+    expect(Number(input.value)).toBeGreaterThan(10)
+
+    rerender(
+      <SeekBar
+        timePos={65}
+        duration={100}
+        seekingRef={seekingRef}
+        onSeekChange={() => {}}
+        onSeekCommit={() => {}}
+        paused={false}
+        chapters={[]}
+        visible
+      />,
+    )
+    expect(Number(input.value)).toBe(65)
+
+    // And extrapolation continues from the resynced value, not from 10.
+    now += 50
+    performanceSpy.mockReturnValue(now)
+    act(() => rafCallbacks.shift()!(now))
+    expect(Number(input.value)).toBeGreaterThan(65)
+
+    vi.useRealTimers()
   })
 })

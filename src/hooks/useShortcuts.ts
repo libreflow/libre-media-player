@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { MAX_VOLUME } from '../utils'
+import { userFacingMessage } from '../errors'
 
 // Seek step (seconds) for ArrowLeft/ArrowRight. 10s matches VLC's default
 // arrow seek; 5s felt too short to make progress on long videos.
@@ -222,7 +223,7 @@ export function useFullscreen(onError: (msg: string) => void) {
       void win
         .setFullscreen(!fs)
         .then(() => setIsFullscreen(!fs))
-        .catch((e) => onError(`Plein écran indisponible : ${String(e)}`))
+        .catch((e) => onError(userFacingMessage('Le plein écran est indisponible.', e).message))
     })
   }, [onError])
 

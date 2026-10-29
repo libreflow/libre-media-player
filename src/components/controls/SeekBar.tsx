@@ -28,6 +28,12 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
   const [hover, setHover] = useState<{ pos: number; chapter: Chapter | null } | null>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const timePosRef = useRef<number | null>(timePos)
+  // Extrapolated position carried across rAF frames. Each frame must build on
+  // the PREVIOUS frame's value, not recompute from the raw timePos: mpv only
+  // ticks time-pos about once per second, so a per-frame recompute advanced
+  // the bar by a single frame-delta between ticks and the bar stayed
+  // essentially frozen instead of gliding.
+  const displayPosRef = useRef<number | null>(timePos)
   const pausedRef = useRef(paused)
   const durationRef = useRef<number | null>(duration)
   // Mirrored into refs for the rAF callback, but only inside an effect:
@@ -44,6 +50,7 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
   // source of truth and observer updates must not snap the thumb back.
   useEffect(() => {
     if (seekingRef.current) return
+    displayPosRef.current = timePos
     setDisplayPos(timePos)
   }, [timePos, seekingRef])
 
@@ -61,7 +68,9 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
         const dur = durationRef.current
         if (dur != null && dur > 0) {
           const elapsed = (now - last) / 1000
-          const next = Math.min(timePosRef.current + elapsed, dur)
+          const base = displayPosRef.current ?? timePosRef.current
+          const next = Math.min(base + elapsed, dur)
+          displayPosRef.current = next
           setDisplayPos(next)
         }
       }
@@ -115,6 +124,7 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
           onChange={(e) => {
             seekingRef.current = true
             const v = Number(e.target.value)
+            displayPosRef.current = v
             setDisplayPos(v)
             onSeekChange(v)
           }}

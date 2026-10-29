@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { userFacingMessage } from '../errors'
 
 // Handles two distinct ways Libre Media Player can be told to open a file from outside
 // its own UI (double-clicking a video in Explorer, "Open with" context menu):
@@ -64,7 +65,7 @@ export function useFileAssociation(opts: {
         const initialPath = await invoke<string | null>('get_initial_file')
         if (!cancelled && initialPath) await openWhenReady(initialPath)
       } catch (e) {
-        if (!cancelled) optsRef.current.onError(`Impossible d'ouvrir le fichier initial : ${String(e)}`)
+        if (!cancelled) optsRef.current.onError(userFacingMessage("Impossible d'ouvrir le fichier initial.", e).message)
       }
 
       if (cancelled) return
