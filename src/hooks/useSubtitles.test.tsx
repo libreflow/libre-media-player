@@ -33,7 +33,12 @@ describe('useSubtitles.toggle', () => {
     })
 
     expect(onError).toHaveBeenCalledTimes(1)
-    expect(onError.mock.calls[0][0]).toContain('mpv not initialized')
+    // The banner now shows a clear French message; the raw technical
+    // detail ("mpv not initialized") is intentionally NOT shown to the
+    // user anymore (see errors.ts) -- but the message must still identify
+    // the mpv engine as the source of the failure.
+    expect(onError.mock.calls[0][0]).toContain('mpv')
+    expect(onError.mock.calls[0][0]).not.toContain('not initialized')
   })
 
   it('does not throw when onError is omitted (optional param)', async () => {

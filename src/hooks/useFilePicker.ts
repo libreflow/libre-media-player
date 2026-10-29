@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { hasVideoExtension, pickSupportedFile, VIDEO_EXTENSIONS } from '../utils'
+import { userFacingMessage } from '../errors'
 
 // File picking via the native dialog + acceptance of files dropped onto the
 // window (native OS drag-drop, not the HTML5 DnD API — mpv's video surface
@@ -38,7 +39,7 @@ export function useFilePicker(opts: {
         await opts.loadFile(videos[0])
       }
     } catch (e) {
-      opts.onError(`Impossible d'ouvrir le sélecteur de fichier : ${String(e)}`)
+      opts.onError(userFacingMessage("Impossible d'ouvrir le sélecteur de fichier.", e).message)
     }
   }
 

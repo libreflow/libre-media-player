@@ -8,6 +8,7 @@ import { useSubtitles } from './hooks/useSubtitles'
 import { usePlaylist } from './hooks/usePlaylist'
 import { useRecentFiles } from './hooks/useRecentFiles'
 import { openDefaultAppsSettings } from './defaultApps'
+import { userFacingMessage } from './errors'
 import { formatTime } from './utils'
 import { Controls } from './components/Controls'
 import { PlaylistPanel } from './components/PlaylistPanel'
@@ -286,7 +287,7 @@ function App() {
         onPlayPrevious={playlist.playPrevious}
         onOpenFile={() => void openFile()}
         onOpenDefaultAppsSettings={() => {
-          void openDefaultAppsSettings().catch((e) => onError(`Impossible d'ouvrir les réglages : ${String(e)}`))
+          void openDefaultAppsSettings().catch((e) => onError(userFacingMessage("Impossible d'ouvrir les réglages Windows.", e).message))
         }}
         onTogglePlaylist={() => playlist.setPanelOpen(!playlist.panelOpen)}
         togglePause={player.togglePause}

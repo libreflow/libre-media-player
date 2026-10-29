@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { command, listenEvents, type MpvEvent } from 'tauri-plugin-libmpv-api'
 import { loadSettings, updateSettings } from '../settings'
 import { basename } from '../utils'
+import { userFacingMessage } from '../errors'
 
 export interface PlaylistItem {
   path: string
@@ -218,7 +219,7 @@ export function usePlaylist(opts: {
           if (mpvEvent.reason === 'eof') playNext()
         })
       } catch (e) {
-        if (!cancelled) opts.onError(`File d'attente indisponible : ${String(e)}`)
+        if (!cancelled) opts.onError(userFacingMessage("La file d'attente est indisponible.", e).message)
       }
     })()
     return () => {
