@@ -156,13 +156,19 @@ pub fn run() {
             open_default_apps_settings
         ])
         .setup(|app| {
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
+            // Logging stays enabled in PRODUCTION too: without it, a bug
+            // reported by a user (file that won't play, mpv init failure,
+            // broken file association) leaves nothing to diagnose with.
+            // Debug builds keep the verbose Info level; release builds log
+            // only warnings and errors (the diagnostics that matter), so
+            // regular playback produces no log noise.
+            let level = if cfg!(debug_assertions) {
+                log::LevelFilter::Info
+            } else {
+                log::LevelFilter::Warn
+            };
+            app.handle()
+                .plugin(tauri_plugin_log::Builder::default().level(level).build())?;
             Ok(())
         })
         .run(tauri::generate_context!())
