@@ -34,10 +34,13 @@ struct InitialFile(Mutex<Option<String>>);
 // and re-request it -- `.take()` would have cleared it and silently lost
 // the file on that second request.
 #[tauri::command]
-fn get_initial_file(state: tauri::State<InitialFile>) -> Option<String> {
+// Async per the repo's Tauri 2 rules -- and async commands taking a
+// reference input (State<'_,>) must return Result (Tauri's macro
+// requires it to encode the borrow into the returned IPC message).
+async fn get_initial_file(state: tauri::State<'_, InitialFile>) -> Result<Option<String>, String> {
     // A poisoned mutex (a panic while holding it elsewhere) must not take
     // the whole IPC down -- report "no initial file" instead.
-    state.0.lock().ok().and_then(|g| g.clone())
+    Ok(state.0.lock().ok().and_then(|g| g.clone()))
 }
 
 // Opens Windows' Default Apps settings page, scoped directly to Libre Media
@@ -82,7 +85,7 @@ fn default_apps_settings_uri(is_registered_user: bool, is_registered_machine: bo
 
 #[cfg(windows)]
 #[tauri::command]
-fn open_default_apps_settings(app: tauri::AppHandle) -> Result<(), String> {
+async fn open_default_apps_settings(app: tauri::AppHandle) -> Result<(), String> {
     use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
     use winreg::{HKEY, RegKey};
 
@@ -105,7 +108,7 @@ fn open_default_apps_settings(app: tauri::AppHandle) -> Result<(), String> {
 
 #[cfg(not(windows))]
 #[tauri::command]
-fn open_default_apps_settings() -> Result<(), String> {
+async fn open_default_apps_settings() -> Result<(), String> {
     Err("Réglages des applications par défaut disponibles uniquement sur Windows".to_string())
 }
 
