@@ -111,9 +111,13 @@ jobs:
       - name: Build Linux bundles (deb + AppImage)
         # APPIMAGE_EXTRACT_AND_RUN: linuxdeploy's AppImage can't use FUSE in
         # this runner environment (no libfuse2), extract-and-run instead.
+        # -c override: bundle.resources (lib/**/*) targets the Windows mpv
+        # wrapper DLLs downloaded by setup-lib; on Linux mpv is the system
+        # libmpv, so the bundles must not embed them (and the glob would
+        # fail outright since setup-lib never ran here).
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
-        run: npx tauri build
+        run: npx tauri build -c '{"bundle":{"resources":[]}}'
       - name: Upload bundles artifact
         uses: actions/upload-artifact@v7
         with:
