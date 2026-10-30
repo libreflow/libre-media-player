@@ -1,23 +1,26 @@
 import { useCallback, useEffect, useState } from 'react'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { loadSettings, updateSettings } from '../settings'
-import { setLocale, t, type Locale } from '../i18n'
+import { setLocale, t, detectSystemLocale, type LocaleSetting } from '../i18n'
 
 // App-level preferences shared by the updater and language hooks (roadmap
 // #63/#64): loads the persisted locale once on mount so the UI renders in
-// the user's language from the first paint. The locale is React state so
-// the language selector always reflects the active language (not a static
+// the user's language from the first paint. The setting is React state so
+// the language selector always reflects the active choice (not a static
 // defaultValue that would desync from the persisted setting at startup).
+// 'auto' resolves to the system language (detected at startup); an
+// explicit 'fr'/'en' choice from the selector is persisted and wins.
 export function useLocale() {
-  const [locale, setLocaleState] = useState<Locale>('fr')
+  const [localeSetting, setLocaleSetting] = useState<LocaleSetting>('auto')
 
   useEffect(() => {
     let cancelled = false
     void loadSettings()
       .then((settings) => {
         if (!cancelled) {
-          setLocale(settings.locale)
-          setLocaleState(settings.locale)
+          const resolved = settings.locale === 'auto' ? detectSystemLocale() : settings.locale
+          setLocale(resolved)
+          setLocaleSetting(settings.locale)
         }
       })
       .catch(() => {})
@@ -26,13 +29,14 @@ export function useLocale() {
     }
   }, [])
 
-  const switchLocale = useCallback((newLocale: Locale) => {
-    setLocale(newLocale)
-    setLocaleState(newLocale)
-    void updateSettings({ locale: newLocale }).catch(() => {})
+  const switchLocale = useCallback((newSetting: LocaleSetting) => {
+    const resolved = newSetting === 'auto' ? detectSystemLocale() : newSetting
+    setLocale(resolved)
+    setLocaleSetting(newSetting)
+    void updateSettings({ locale: newSetting }).catch(() => {})
   }, [])
 
-  return { locale, switchLocale }
+  return { localeSetting, switchLocale }
 }
 
 // Checks for a newer GitHub release once per app session (roadmap #63) and

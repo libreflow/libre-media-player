@@ -1,4 +1,4 @@
-import { t, LOCALES, LOCALE_LABELS, type Locale } from '../i18n'
+import { t, LOCALES, LOCALE_LABELS, type LocaleSetting } from '../i18n'
 import type { Chapter } from '../chapters'
 import { SeekBar } from './controls/SeekBar'
 import { VolumeControl } from './controls/VolumeControl'
@@ -41,9 +41,9 @@ interface ControlsProps {
   /** Chapter markers drawn on the seek bar (roadmap #61). */
   chapters: Chapter[]
   /** Switches the UI language (roadmap #64) and persists it. */
-  onSwitchLocale: (locale: Locale) => void
-  /** Active locale (roadmap #64) -- drives the selector's controlled value. */
-  locale: Locale
+  onSwitchLocale: (locale: LocaleSetting) => void
+  /** Active locale setting (roadmap #64) -- drives the selector's value. */
+  locale: LocaleSetting
 }
 
 export function Controls(props: ControlsProps) {
@@ -104,11 +104,11 @@ export function Controls(props: ControlsProps) {
           <select
             aria-label={t('language')}
             value={locale}
-            onChange={(e) => onSwitchLocale(e.target.value as Locale)}
+            onChange={(e) => onSwitchLocale(e.target.value as LocaleSetting)}
             onClick={(e) => e.stopPropagation()}
           >
             {LOCALES.map((l) => (
-              <option key={l} value={l}>{LOCALE_LABELS[l]}</option>
+              <option key={l} value={l}>{l === 'auto' ? t('languageAuto') : LOCALE_LABELS[l]}</option>
             ))}
           </select>
         </label>

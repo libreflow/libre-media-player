@@ -5,6 +5,9 @@
 // plain objects and `t()` is a lookup with {placeholder} interpolation.
 
 export type Locale = 'fr' | 'en'
+// 'auto' = follow the system language (detected at startup); an explicit
+// choice from the selector is persisted and takes precedence.
+export type LocaleSetting = Locale | 'auto'
 
 const fr = {
   // Generic / error banner
@@ -75,6 +78,7 @@ const fr = {
   updateCheckFailed: 'Vérification de mise à jour impossible : {err}',
   // Language (#64)
   language: 'Langue',
+  languageAuto: 'Automatique (langue du système)',
 } as const
 
 export type MessageKey = keyof typeof fr
@@ -137,17 +141,35 @@ const en: Record<MessageKey, string> = {
   updateReady: 'Update ready. Restart to apply?',
   updateCheckFailed: 'Update check failed: {err}',
   language: 'Language',
+  languageAuto: 'Automatic (system language)',
 }
 
 const CATALOGS: Record<Locale, Record<MessageKey, string>> = { fr, en }
 
-export const LOCALES: Locale[] = ['fr', 'en']
+export const LOCALES: LocaleSetting[] = ['auto', 'fr', 'en']
 
 // Endonymes affichés dans le sélecteur de langue : chaque langue se nomme
 // elle-même, quel que soit le réglage courant.
-export const LOCALE_LABELS: Record<Locale, string> = {
+export const LOCALE_LABELS: Record<LocaleSetting, string> = {
+  auto: 'Auto',
   fr: 'Français',
   en: 'English',
+}
+
+// Resolves the OS/browser language list to a supported locale: the first
+// entry whose primary subtag matches a catalog wins ('fr-CA' -> 'fr',
+// 'en-GB' -> 'en'); anything unsupported (or an empty list, e.g. stripped
+// in a test environment) falls back to the project's French-first default.
+export function detectSystemLocale(): Locale {
+  const languages: readonly string[] = navigator.languages?.length
+    ? navigator.languages
+    : [navigator.language]
+  for (const language of languages) {
+    const primary = language.toLowerCase().split('-')[0]
+    if (primary === 'fr') return 'fr'
+    if (primary === 'en') return 'en'
+  }
+  return 'fr'
 }
 
 let currentLocale: Locale = 'fr'

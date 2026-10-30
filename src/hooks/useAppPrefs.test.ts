@@ -13,29 +13,44 @@ vi.mock('../settings', () => ({
 vi.mock('../i18n', () => ({
   setLocale: vi.fn(),
   t: (k: string) => k,
+  detectSystemLocale: () => 'en',
 }))
 
 import { useUpdateCheck, useLocale } from './useAppPrefs'
 import { renderHook, act } from '@testing-library/react'
 
 describe('useLocale', () => {
-  it('applies la langue persistée au montage', async () => {
+  it('applique la langue persistée au montage', async () => {
     const { setLocale } = await import('../i18n')
     const { result } = renderHook(() => useLocale())
     expect(result.current.switchLocale).toBeTypeOf('function')
     await vi.waitFor(() => expect(setLocale).toHaveBeenCalledWith('en'))
-    // Le state reflète la langue persistée -- c'est lui qui pilote la valeur
+    // Le state reflète le réglage persisté -- c'est lui qui pilote la valeur
     // du sélecteur de langue (plus de defaultValue statique désynchronisé).
-    await vi.waitFor(() => expect(result.current.locale).toBe('en'))
+    await vi.waitFor(() => expect(result.current.localeSetting).toBe('en'))
   })
 
-  it('expose la nouvelle locale après switchLocale', async () => {
+  it('résout auto vers la langue système au montage', async () => {
+    const { loadSettings } = await import('../settings')
+    vi.mocked(loadSettings).mockResolvedValueOnce({ locale: 'auto' } as never)
+    const { setLocale } = await import('../i18n')
+    const { result } = renderHook(() => useLocale())
+    // detectSystemLocale est mocké -> 'auto' doit résoudre vers 'en' tout en
+    // gardant le réglage 'auto' exposé au sélecteur.
+    await vi.waitFor(() => expect(setLocale).toHaveBeenCalledWith('en'))
+    expect(result.current.localeSetting).toBe('auto')
+  })
+
+  it('expose le nouveau réglage après switchLocale et le persiste', async () => {
     const { updateSettings } = await import('../settings')
     const { result } = renderHook(() => useLocale())
-    await vi.waitFor(() => expect(result.current.locale).toBe('en'))
+    await vi.waitFor(() => expect(result.current.localeSetting).toBe('en'))
     act(() => result.current.switchLocale('fr'))
-    expect(result.current.locale).toBe('fr')
+    expect(result.current.localeSetting).toBe('fr')
     expect(updateSettings).toHaveBeenCalledWith({ locale: 'fr' })
+    act(() => result.current.switchLocale('auto'))
+    expect(result.current.localeSetting).toBe('auto')
+    expect(updateSettings).toHaveBeenCalledWith({ locale: 'auto' })
   })
 })
 

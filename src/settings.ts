@@ -13,8 +13,8 @@ export interface Settings {
   shuffle: boolean
   /** Queue repeat preference, restored on startup. */
   repeat: boolean
-  /** UI language (roadmap #64); 'fr' preserves the pre-setting behavior. */
-  locale: 'fr' | 'en'
+  /** UI language (roadmap #64); 'auto' = follow the system language. */
+  locale: 'fr' | 'en' | 'auto'
   /** Preferred audio track language (mpv lang code or 'any', roadmap #58).
    * Persisted so the next opened file auto-selects it when available. */
   preferredAudioLang: string
@@ -24,7 +24,7 @@ const DEFAULTS: Settings = {
   volume: 100,
   shuffle: false,
   repeat: false,
-  locale: 'fr',
+  locale: 'auto',
   preferredAudioLang: 'any',
 }
 
