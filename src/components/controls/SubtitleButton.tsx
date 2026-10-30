@@ -91,7 +91,7 @@ export function SubtitleButton({
               setOpen(false)
             }}
           >
-            Désactivés
+            {translate('disabled')}
           </button>
           {subTracks.map((t) => (
             <button

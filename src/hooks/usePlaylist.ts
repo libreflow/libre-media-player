@@ -143,12 +143,25 @@ export function usePlaylist(opts: {
 
   const playPrevious = useCallback(() => {
     if (indexRef.current === -1) return
+    const len = queueRef.current.length
+    if (len === 0) return
+    // Mirror playNext's shuffle behavior: "previous" picks a random index
+    // other than the current one, so both navigation buttons and both
+    // shortcuts behave the same way in shuffle mode.
+    if (shuffleRef.current && len > 1) {
+      let prev = indexRef.current
+      while (prev === indexRef.current) {
+        prev = Math.floor(Math.random() * len)
+      }
+      void playIndex(prev)
+      return
+    }
     if (indexRef.current > 0) {
       void playIndex(indexRef.current - 1)
-    } else if (repeatRef.current && queueRef.current.length > 0) {
+    } else if (repeatRef.current && len > 0) {
       // Mirror playNext's repeat behavior: wrapping back from the first
       // item jumps to the last one instead of being a dead end.
-      void playIndex(queueRef.current.length - 1)
+      void playIndex(len - 1)
     }
   }, [playIndex])
 

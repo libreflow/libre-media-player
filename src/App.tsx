@@ -341,7 +341,11 @@ function App() {
           playlist.repeat ||
           (playlist.shuffle && playlist.queue.length > 1)
         }
-        hasPrevious={playlist.currentIndex > 0 || (playlist.repeat && playlist.queue.length > 0)}
+        hasPrevious={
+          playlist.currentIndex > 0 ||
+          (playlist.shuffle && playlist.queue.length > 1) ||
+          (playlist.repeat && playlist.queue.length > 0)
+        }
         onPlayNext={playlist.playNext}
         onPlayPrevious={playlist.playPrevious}
         onOpenFile={() => void openFile()}

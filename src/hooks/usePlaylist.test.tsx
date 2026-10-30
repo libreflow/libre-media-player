@@ -156,6 +156,39 @@ describe('usePlaylist navigation edge cases', () => {
     expect(result.current.currentIndex).toBe(0)
   })
 
+  it('playPrevious navigates randomly (never staying put) when shuffle is on', async () => {
+    const { result } = setup()
+    await act(async () => {
+      result.current.append(['/videos/a.mkv', '/videos/b.mkv', '/videos/c.mkv'])
+    })
+    expect(result.current.currentIndex).toBe(0)
+    await act(async () => {
+      result.current.toggleShuffle()
+    })
+    await act(async () => {
+      result.current.playPrevious()
+    })
+    // Mirror of playNext's shuffle branch: must move to a DIFFERENT item
+    // instead of being a dead end at the head of the queue.
+    expect(result.current.currentIndex).not.toBe(0)
+    expect(result.current.currentIndex).toBeGreaterThanOrEqual(0)
+    expect(result.current.currentIndex).toBeLessThan(3)
+  })
+
+  it('playPrevious is a no-op in shuffle when the queue has a single item', async () => {
+    const { result } = setup()
+    await act(async () => {
+      result.current.append(['/videos/a.mkv'])
+    })
+    await act(async () => {
+      result.current.toggleShuffle()
+    })
+    await act(async () => {
+      result.current.playPrevious()
+    })
+    expect(result.current.currentIndex).toBe(0)
+  })
+
   it('removing the playing item advances to the item that shifted into its slot', async () => {
     const { result, loadFile } = setup()
     await act(async () => {

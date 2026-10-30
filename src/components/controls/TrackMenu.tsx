@@ -23,13 +23,17 @@ export function TrackMenu({ label, tracks, onSelect, onDisable, disabledSelected
     return () => window.removeEventListener('mousedown', onPointerDown)
   }, [open])
 
-  if (tracks.length === 0) return null
+  // Keep the button mounted even with no tracks yet (disabled): unmounting
+  // made the control appear/pop during playback as mpv reports the track
+  // list, visibly re-arranging the whole bottom row.
+  const hasTracks = tracks.length > 0
 
   return (
     <div className="track-menu" ref={rootRef}>
       <button
         type="button"
         className={`icon-btn${open ? ' is-active' : ''}`}
+        disabled={!hasTracks}
         onClick={(e) => {
           e.stopPropagation()
           setOpen((v) => !v)
