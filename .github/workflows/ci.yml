@@ -88,7 +88,9 @@ jobs:
     # same but does not gate the merge (continue-on-error) so packaging
     # experiments don't block code review -- a broken bundle on main is
     # always visible though.
-    runs-on: ubuntu-22.04
+    # ubuntu-latest (24.04): the job `rust` proves these exact package
+    # names resolve there -- Ubuntu 22.04 has no libmpv2 package.
+    runs-on: ubuntu-latest
     continue-on-error: ${{ github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v7
@@ -104,9 +106,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
-            libmpv-dev libmpv2 libfuse2
+            libmpv-dev libmpv2
       - run: npm ci
       - name: Build Linux bundles (deb + AppImage)
+        # APPIMAGE_EXTRACT_AND_RUN: linuxdeploy's AppImage can't use FUSE in
+        # this runner environment (no libfuse2), extract-and-run instead.
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
         run: npx tauri build
       - name: Upload bundles artifact
         uses: actions/upload-artifact@v7
