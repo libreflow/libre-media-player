@@ -5,13 +5,20 @@ import { setLocale, t, type Locale } from '../i18n'
 
 // App-level preferences shared by the updater and language hooks (roadmap
 // #63/#64): loads the persisted locale once on mount so the UI renders in
-// the user's language from the first paint.
+// the user's language from the first paint. The locale is React state so
+// the language selector always reflects the active language (not a static
+// defaultValue that would desync from the persisted setting at startup).
 export function useLocale() {
+  const [locale, setLocaleState] = useState<Locale>('fr')
+
   useEffect(() => {
     let cancelled = false
     void loadSettings()
       .then((settings) => {
-        if (!cancelled) setLocale(settings.locale)
+        if (!cancelled) {
+          setLocale(settings.locale)
+          setLocaleState(settings.locale)
+        }
       })
       .catch(() => {})
     return () => {
@@ -19,12 +26,13 @@ export function useLocale() {
     }
   }, [])
 
-  const switchLocale = useCallback((locale: Locale) => {
-    setLocale(locale)
-    void updateSettings({ locale }).catch(() => {})
+  const switchLocale = useCallback((newLocale: Locale) => {
+    setLocale(newLocale)
+    setLocaleState(newLocale)
+    void updateSettings({ locale: newLocale }).catch(() => {})
   }, [])
 
-  return { switchLocale }
+  return { locale, switchLocale }
 }
 
 // Checks for a newer GitHub release once per app session (roadmap #63) and

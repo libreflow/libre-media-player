@@ -21,7 +21,7 @@ import './App.css'
 const SEEK_OSD_MS = 900
 
 function App() {
-  const { switchLocale } = useLocale()
+  const { locale, switchLocale } = useLocale()
   const { showControls, onPointerActivity } = useControlsVisibility()
   const [error, setError] = useState<string | null>(null)
   // Generic OSD for one-shot confirmations (screenshot, update prompt).
@@ -360,6 +360,7 @@ function App() {
         visible={showControls || !hasMedia}
         chapters={chapters}
         onSwitchLocale={switchLocale}
+        locale={locale}
       />
     </div>
   )

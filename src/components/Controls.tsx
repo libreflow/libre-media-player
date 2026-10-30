@@ -1,4 +1,4 @@
-import { t, LOCALES, type Locale } from '../i18n'
+import { t, LOCALES, LOCALE_LABELS, type Locale } from '../i18n'
 import type { Chapter } from '../chapters'
 import { SeekBar } from './controls/SeekBar'
 import { VolumeControl } from './controls/VolumeControl'
@@ -42,6 +42,8 @@ interface ControlsProps {
   chapters: Chapter[]
   /** Switches the UI language (roadmap #64) and persists it. */
   onSwitchLocale: (locale: Locale) => void
+  /** Active locale (roadmap #64) -- drives the selector's controlled value. */
+  locale: Locale
 }
 
 export function Controls(props: ControlsProps) {
@@ -51,7 +53,7 @@ export function Controls(props: ControlsProps) {
     onToggleSubtitles, onPlayNext, onPlayPrevious, onOpenFile, onOpenDefaultAppsSettings, onTogglePlaylist,
     subTracks, audioTracks, onSelectSubtrack, onDisableSubtitles, onSelectAudioTrack,
     togglePause, toggleFullscreen, setVolume,
-    onSeekChange, onSeekCommit, seekingRef, timePos, duration, visible, chapters, onSwitchLocale,
+    onSeekChange, onSeekCommit, seekingRef, timePos, duration, visible, chapters, onSwitchLocale, locale,
   } = props
   return (
     <div className="controls" role="toolbar" aria-label={t('play')} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
@@ -101,12 +103,12 @@ export function Controls(props: ControlsProps) {
           <span className="sr-only">{t('language')}</span>
           <select
             aria-label={t('language')}
-            defaultValue="fr"
+            value={locale}
             onChange={(e) => onSwitchLocale(e.target.value as Locale)}
             onClick={(e) => e.stopPropagation()}
           >
             {LOCALES.map((l) => (
-              <option key={l} value={l}>{l.toUpperCase()}</option>
+              <option key={l} value={l}>{LOCALE_LABELS[l]}</option>
             ))}
           </select>
         </label>

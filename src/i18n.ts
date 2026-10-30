@@ -143,6 +143,13 @@ const CATALOGS: Record<Locale, Record<MessageKey, string>> = { fr, en }
 
 export const LOCALES: Locale[] = ['fr', 'en']
 
+// Endonymes affichés dans le sélecteur de langue : chaque langue se nomme
+// elle-même, quel que soit le réglage courant.
+export const LOCALE_LABELS: Record<Locale, string> = {
+  fr: 'Français',
+  en: 'English',
+}
+
 let currentLocale: Locale = 'fr'
 
 export function setLocale(locale: Locale): void {

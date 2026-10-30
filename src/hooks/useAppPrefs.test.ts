@@ -16,7 +16,7 @@ vi.mock('../i18n', () => ({
 }))
 
 import { useUpdateCheck, useLocale } from './useAppPrefs'
-import { renderHook } from '@testing-library/react'
+import { renderHook, act } from '@testing-library/react'
 
 describe('useLocale', () => {
   it('applies la langue persistée au montage', async () => {
@@ -24,6 +24,18 @@ describe('useLocale', () => {
     const { result } = renderHook(() => useLocale())
     expect(result.current.switchLocale).toBeTypeOf('function')
     await vi.waitFor(() => expect(setLocale).toHaveBeenCalledWith('en'))
+    // Le state reflète la langue persistée -- c'est lui qui pilote la valeur
+    // du sélecteur de langue (plus de defaultValue statique désynchronisé).
+    await vi.waitFor(() => expect(result.current.locale).toBe('en'))
+  })
+
+  it('expose la nouvelle locale après switchLocale', async () => {
+    const { updateSettings } = await import('../settings')
+    const { result } = renderHook(() => useLocale())
+    await vi.waitFor(() => expect(result.current.locale).toBe('en'))
+    act(() => result.current.switchLocale('fr'))
+    expect(result.current.locale).toBe('fr')
+    expect(updateSettings).toHaveBeenCalledWith({ locale: 'fr' })
   })
 })
 
