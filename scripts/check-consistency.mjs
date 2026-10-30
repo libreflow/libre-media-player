@@ -66,7 +66,36 @@ for (const [, progId] of nsisExtensions) {
   }
 }
 
-// --- 3. Versions: package.json <-> tauri.conf.json <-> Cargo.toml ---
+// --- 3. MIME types: one canonical type per extension in tauri.conf.json ---
+// A mimeType copy-pasted from another entry (e.g. video/x-matroska on .avi)
+// produces a wrong shared-mime-info registration on Linux and a misleading
+// "Open with" description elsewhere. Map each extension to its canonical
+// IANA/freedesktop type so a wrong one fails CI instead of shipping.
+const CANONICAL_MIME_TYPES = {
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  mov: 'video/quicktime',
+  mkv: 'video/x-matroska',
+  webm: 'video/webm',
+  avi: 'video/x-msvideo',
+  flv: 'video/x-flv',
+  wmv: 'video/x-ms-wmv',
+  ts: 'video/mp2t',
+  mpg: 'video/mpeg',
+  mpeg: 'video/mpeg',
+}
+
+for (const fa of tauriConf.bundle.fileAssociations) {
+  for (const ext of fa.ext) {
+    if (fa.mimeType !== CANONICAL_MIME_TYPES[ext]) {
+      fail(
+        `tauri.conf.json: extension .${ext} has mimeType "${fa.mimeType}", expected "${CANONICAL_MIME_TYPES[ext]}"`,
+      )
+    }
+  }
+}
+
+// --- 4. Versions: package.json <-> tauri.conf.json <-> Cargo.toml ---
 
 const pkgVersion = JSON.parse(read('package.json')).version
 // Restrict to the [package] section so dependency versions don't match.

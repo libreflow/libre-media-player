@@ -34,7 +34,9 @@ npm run tauri build -- --debug    # produit AppImage/deb (bundle.targets: all)
 
 L'association de fichiers est déclarée via `bundle.fileAssociations[].mimeType`
 (desktop entry + MIME types installés par Tauri). Le packaging AppImage/deb
-est encore en cours de validation sur les distributions cibles.
+est encore en cours de validation sur les distributions cibles (le job
+CI `linux-bundles` compile deb + AppImage à chaque push sur main, voir
+`docs/RELEASE.md`).
 
 ## Mise à jour automatique (roadmap — issue #63)
 
@@ -43,7 +45,8 @@ démarrage la présence d'un `latest.json` dans la dernière release GitHub
 et propose l'installation en un clic. **Attention** : la clé publique
 (`plugins.updater.pubkey` dans `src-tauri/tauri.conf.json`) est vide
 pour l'instant — la vérification des signatures sera activée dès que
-les artifacts seront signés (minisign) par le workflow de release.
+les artifacts seront signés (minisign) par le workflow de release
+(`docs/RELEASE.md` détaille le pipeline et les étapes restantes).
 
 ## Installation depuis les sources
 

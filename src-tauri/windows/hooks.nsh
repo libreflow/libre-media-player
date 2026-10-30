@@ -25,15 +25,15 @@
   ; doesn't exist, so the "open with" command would do nothing.
   WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".mp4" "Vidéo MP4 QuickTime"
   WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".m4v" "Vidéo MP4 QuickTime"
-  WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".mov" "Vidéo MP4 QuickTime"
-  WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".mkv" "Vidéo Matroska WebM"
-  WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".webm" "Vidéo Matroska WebM"
+  WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".mov" "Vidéo QuickTime"
+  WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".mkv" "Vidéo Matroska"
+  WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".webm" "Vidéo WebM"
   WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".avi" "Vidéo AVI"
-  WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".flv" "Vidéo"
-  WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".wmv" "Vidéo"
-  WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".ts" "Vidéo"
-  WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".mpg" "Vidéo"
-  WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".mpeg" "Vidéo"
+  WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".flv" "Vidéo Flash"
+  WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".wmv" "Vidéo Windows Media"
+  WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".ts" "Vidéo MPEG Transport Stream"
+  WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".mpg" "Vidéo MPEG"
+  WriteRegStr SHCTX "Software\Clients\Media\Libre Media Player\Capabilities\FileAssociations" ".mpeg" "Vidéo MPEG"
   WriteRegStr SHCTX "Software\RegisteredApplications" "Libre Media Player" "Software\Clients\Media\Libre Media Player\Capabilities"
 
   ; App Paths lets Windows resolve "${MAINBINARYNAME}.exe" by bare name (Run dialog,

@@ -35,8 +35,7 @@
       {
         "ext": [
           "mp4",
-          "m4v",
-          "mov"
+          "m4v"
         ],
         "name": "Vidéo MP4 QuickTime",
         "description": "Fichier vidéo",
@@ -45,13 +44,30 @@
       },
       {
         "ext": [
-          "mkv",
-          "webm"
+          "mov"
         ],
-        "name": "Vidéo Matroska WebM",
+        "name": "Vidéo QuickTime",
+        "description": "Fichier vidéo",
+        "role": "Viewer",
+        "mimeType": "video/quicktime"
+      },
+      {
+        "ext": [
+          "mkv"
+        ],
+        "name": "Vidéo Matroska",
         "description": "Fichier vidéo",
         "role": "Viewer",
         "mimeType": "video/x-matroska"
+      },
+      {
+        "ext": [
+          "webm"
+        ],
+        "name": "Vidéo WebM",
+        "description": "Fichier vidéo",
+        "role": "Viewer",
+        "mimeType": "video/webm"
       },
       {
         "ext": [
@@ -60,20 +76,44 @@
         "name": "Vidéo AVI",
         "description": "Fichier vidéo",
         "role": "Viewer",
-        "mimeType": "video/x-matroska"
+        "mimeType": "video/x-msvideo"
       },
       {
         "ext": [
-          "flv",
-          "wmv",
-          "ts",
+          "flv"
+        ],
+        "name": "Vidéo Flash",
+        "description": "Fichier vidéo",
+        "role": "Viewer",
+        "mimeType": "video/x-flv"
+      },
+      {
+        "ext": [
+          "wmv"
+        ],
+        "name": "Vidéo Windows Media",
+        "description": "Fichier vidéo",
+        "role": "Viewer",
+        "mimeType": "video/x-ms-wmv"
+      },
+      {
+        "ext": [
+          "ts"
+        ],
+        "name": "Vidéo MPEG Transport Stream",
+        "description": "Fichier vidéo",
+        "role": "Viewer",
+        "mimeType": "video/mp2t"
+      },
+      {
+        "ext": [
           "mpg",
           "mpeg"
         ],
-        "name": "Vidéo",
+        "name": "Vidéo MPEG",
         "description": "Fichier vidéo",
         "role": "Viewer",
-        "mimeType": "video/x-matroska"
+        "mimeType": "video/mpeg"
       }
     ],
     "icon": [

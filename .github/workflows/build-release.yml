@@ -1,0 +1,76 @@
+name: Build release artifacts
+
+# Triggered by release-please when it cuts a GitHub release (see
+# .github/workflows/release-please.yml). Builds the shipped artifacts,
+# signs them for the updater (minisign) and attaches the updater manifest
+# (latest.json) so `tauri-plugin-updater` can self-update installed apps.
+#
+# REQUIRED SECRETS (see docs/RELEASE.md before the first public release):
+#   TAURI_SIGNING_PRIVATE_KEY       -- minisign private key (contents)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+# The job fails fast when they are missing: shipping unsigned artifacts
+# would make the updater pubkey in tauri.conf.json (currently empty) and
+# this workflow disagree -- better a red release than a broken updater.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Check updater signing secrets are configured
+        if: ${{ env.TAURI_SIGNING_PRIVATE_KEY == '' }}
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          echo "::error::TAURI_SIGNING_PRIVATE_KEY secret is not set -- the updater artifacts would be unsigned. See docs/RELEASE.md."
+          exit 1
+      - name: Fetch native mpv libraries
+        run: npm ci && npx tauri-plugin-libmpv-api setup-lib
+      - name: Build NSIS installer (signed for updater)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npx tauri build
+      - name: Generate updater manifest (latest.json)
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          INSTALLER=$(ls src-tauri/target/release/bundle/nsis/*.exe | head -n 1)
+          cat "$INSTALLER.sig" >/dev/null
+          VERSION="${RELEASE_TAG#v}"
+          cat > latest.json <<EOF
+          {
+            "version": "$VERSION",
+            "notes": "See https://github.com/libreflow/libre-media-player/releases/tag/$RELEASE_TAG",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "windows-x86_64": {
+                "signature": "$(cat "$INSTALLER.sig")",
+                "url": "https://github.com/libreflow/libre-media-player/releases/download/$RELEASE_TAG/$(basename "$INSTALLER")"
+              }
+            }
+          }
+          EOF
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/nsis/*.exe.sig
+            latest.json
