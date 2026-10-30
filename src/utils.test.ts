@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatTime, pickSupportedFile, VIDEO_EXTENSIONS } from './utils'
+import { basename, formatTime, pickSupportedFile, splitPath, swapExtension, VIDEO_EXTENSIONS } from './utils'
 
 describe('formatTime', () => {
   it('renders a placeholder for null/NaN', () => {
@@ -23,6 +23,57 @@ describe('formatTime', () => {
   it('floors fractional seconds', () => {
     expect(formatTime(59.9)).toBe('0:59')
     expect(formatTime(754.99)).toBe('12:34')
+  })
+
+  it('clamps negative values to 0:00 instead of rendering "-1:-10"', () => {
+    // Reachable via the seek OSD (timePos + delta can go below 0) or a
+    // transient negative mpv time-pos.
+    expect(formatTime(-10)).toBe('0:00')
+    expect(formatTime(-65)).toBe('0:00')
+  })
+})
+
+describe('swapExtension', () => {
+  it('swaps the extension of a plain file name', () => {
+    expect(swapExtension('C:/videos/movie.mkv', 'srt')).toBe('C:/videos/movie.srt')
+    expect(swapExtension('movie', 'srt')).toBe('movie.srt')
+  })
+
+  it('ignores dots in directory components', () => {
+    // Regression: lastIndexOf('.') over the WHOLE path truncated directories
+    // containing a dot, so subtitle sidecar discovery silently failed for
+    // any video inside e.g. "C:/Mes.Vidéos/".
+    expect(swapExtension('C:/Mes.Vidéos/film.mkv', 'srt')).toBe('C:/Mes.Vidéos/film.srt')
+    expect(swapExtension('C:\\dossier.avec.dots\\movie', 'srt')).toBe(
+      'C:\\dossier.avec.dots\\movie.srt',
+    )
+  })
+
+  it('keeps a file name that contains several dots intact except the last extension', () => {
+    expect(swapExtension('C:/videos/mon.film.2024.mkv', 'ass')).toBe(
+      'C:/videos/mon.film.2024.ass',
+    )
+  })
+})
+
+describe('splitPath / basename', () => {
+  it('splits regular paths', () => {
+    expect(splitPath('C:\\videos\\movie.mkv')).toEqual({ dir: 'C:\\videos\\', name: 'movie.mkv' })
+    expect(splitPath('/home/u/movie.mkv')).toEqual({ dir: '/home/u/', name: 'movie.mkv' })
+    expect(basename('C:/videos/movie.mkv')).toBe('movie.mkv')
+  })
+
+  it('handles a bare name without separator', () => {
+    expect(splitPath('movie.mkv')).toEqual({ dir: '', name: 'movie.mkv' })
+  })
+
+  it('keeps a drive prefix on a drive-relative path ("C:name")', () => {
+    // Regression: the old code returned { dir: '', name: 'C:movie.mkv' } for
+    // this shape (its slice(3) branch was unreachable because the slash
+    // index can never be 1 with path[1] === ':'), so basename() and the
+    // sidecar "<bare>.<lang>.<ext>" variants were wrong for it.
+    expect(splitPath('C:movie.mkv')).toEqual({ dir: 'C:', name: 'movie.mkv' })
+    expect(basename('C:movie.mkv')).toBe('movie.mkv')
   })
 })
 
