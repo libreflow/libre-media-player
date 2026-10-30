@@ -6,7 +6,9 @@ export const VIDEO_EXTENSIONS = [
 
 export function formatTime(seconds: number | null): string {
   if (seconds == null || Number.isNaN(seconds)) return '--:--'
-  const total = Math.floor(seconds)
+  // Clamp negatives (a seek before 0 or a transient negative mpv time-pos)
+  // instead of rendering broken values like "-1:-10".
+  const total = Math.max(0, Math.floor(seconds))
   const h = Math.floor(total / 3600)
   const m = Math.floor((total % 3600) / 60)
   const s = total % 60
@@ -23,9 +25,12 @@ const VIDEO_EXTENSION_SET = new Set(VIDEO_EXTENSIONS)
 // drive prefixes, missing separators).
 export function splitPath(path: string): { dir: string; name: string } {
   const slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
-  if (slash === -1) return { dir: '', name: path }
-  // Preserve a Windows drive prefix ("C:") when it directly abuts the name.
-  if (slash === 1 && path[1] === ':') return { dir: path.slice(0, 2), name: path.slice(3) }
+  if (slash === -1) {
+    // Bare "C:name" (drive-relative path, no separator): keep the drive
+    // prefix in dir so basename() doesn't return "C:name".
+    if (path.length > 1 && path[1] === ':') return { dir: path.slice(0, 2), name: path.slice(2) }
+    return { dir: '', name: path }
+  }
   return { dir: path.slice(0, slash + 1), name: path.slice(slash + 1) }
 }
 
@@ -34,8 +39,11 @@ export function basename(path: string): string {
 }
 
 export function swapExtension(path: string, ext: string): string {
+  // Only consider dots in the FILE NAME, not in directory components: a
+  // directory like "C:/Mes.Vidéos/" must not truncate the path.
+  const slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
   const dot = path.lastIndexOf('.')
-  const base = dot === -1 ? path : path.slice(0, dot)
+  const base = dot === -1 || dot < slash ? path : path.slice(0, dot)
   return `${base}.${ext}`
 }
 

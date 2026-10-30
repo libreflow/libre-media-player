@@ -11,6 +11,7 @@ import {
 import { loadSettings, updateSettings } from '../settings'
 import { describeLoadError } from '../mpvErrors'
 import { screenshotPath } from '../screenshot'
+import { exists } from '@tauri-apps/plugin-fs'
 import { userFacingMessage } from '../errors'
 import { useResumePosition } from './useResumePosition'
 
@@ -462,12 +463,15 @@ export function usePlayer(
 
   // Screenshot capture: mpv refuses to overwrite an existing file and
   // errors on a collision, so the destination name is computed from the
-  // set of PNGs that already exist next to the video.
+  // set of PNGs that already exist -- both captured this session (the
+  // in-memory set) and on disk from previous runs (exists()). Without the
+  // disk probe, the second launch of the app always collided with the
+  // previous session's "movie.1.png" and the capture failed.
   const screenshotTakenRef = useRef(new Set<string>())
   const takeScreenshot = useCallback(async (): Promise<string> => {
     const videoPath = currentPathRef.current
     if (!videoPath) throw new Error('aucune vidéo en lecture')
-    const dest = screenshotPath(videoPath, screenshotTakenRef.current)
+    const dest = await screenshotPath(videoPath, screenshotTakenRef.current, exists)
     await command('screenshot-to-file', [dest, 'subtitles'])
     screenshotTakenRef.current.add(dest.toLowerCase())
     return dest

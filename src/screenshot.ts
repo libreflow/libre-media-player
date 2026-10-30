@@ -7,16 +7,19 @@ import { basename, splitPath } from './utils'
 // Builds the PNG destination path: next to the video by default, or in
 // the OS Pictures folder when configured. Name is "<video>.<n>.png" with a
 // monotonic n: mpv refuses to overwrite and errors on a collision, so the
-// first free index wins.
-export function screenshotPath(
+// first free index wins. The in-memory `existing` set covers captures made
+// during THIS session; `fileExists` probes the disk so a PNG left by a
+// previous run is also skipped instead of making mpv error out.
+export async function screenshotPath(
   videoPath: string,
   existing: Set<string>,
-): string {
+  fileExists: (path: string) => Promise<boolean>,
+): Promise<string> {
   const { dir, name } = splitPath(videoPath)
   const base = `${dir}${name}`
   let n = 1
   let path = `${base}.${n}.png`
-  while (existing.has(path.toLowerCase())) {
+  while (existing.has(path.toLowerCase()) || (await fileExists(path).catch(() => false))) {
     n += 1
     path = `${base}.${n}.png`
   }
