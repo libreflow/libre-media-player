@@ -88,7 +88,13 @@ export function useKeyboardShortcuts(opts: {
       // (e.g. z = subtitles earlier, Z = subtitles later); physical-key
       // matching below keeps both layout-independent.
       const letter = letterShortcut(e)
-      switch (letter != null ? `${e.shiftKey ? letter.toUpperCase() : letter}` : e.key) {
+      // Non-letter keys fall back to e.key (Space, arrows, Escape are the
+      // same on every layout) -- except the bracket keys: on AZERTY the
+      // unshifted BracketLeft/BracketRight produce a dead '^' and '[' / ']'
+      // require AltGr (a chord, ignored above), so e.key never matches.
+      // Match those two on the PHYSICAL key instead, like letters.
+      const bracket = e.code === 'BracketLeft' ? '[' : e.code === 'BracketRight' ? ']' : null
+      switch (letter != null ? `${e.shiftKey ? letter.toUpperCase() : letter}` : (bracket ?? e.key)) {
         case ' ':
         case 'k':
           e.preventDefault()

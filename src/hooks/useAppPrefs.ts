@@ -7,11 +7,20 @@ import { setLocale, t, type Locale } from '../i18n'
 // #63/#64): loads the persisted locale once on mount so the UI renders in
 // the user's language from the first paint.
 export function useLocale() {
+  // The locale lives in React state (mirroring i18n's module-level value):
+  // setLocale() alone mutates a module variable and triggers no re-render,
+  // so the UI used to stay in the old language until some unrelated state
+  // change happened to re-render the tree.
+  const [locale, setLocaleState] = useState<Locale>('fr')
+
   useEffect(() => {
     let cancelled = false
     void loadSettings()
       .then((settings) => {
-        if (!cancelled) setLocale(settings.locale)
+        if (!cancelled) {
+          setLocale(settings.locale)
+          setLocaleState(settings.locale)
+        }
       })
       .catch(() => {})
     return () => {
@@ -19,12 +28,13 @@ export function useLocale() {
     }
   }, [])
 
-  const switchLocale = useCallback((locale: Locale) => {
-    setLocale(locale)
-    void updateSettings({ locale }).catch(() => {})
+  const switchLocale = useCallback((next: Locale) => {
+    setLocale(next)
+    setLocaleState(next)
+    void updateSettings({ locale: next }).catch(() => {})
   }, [])
 
-  return { switchLocale }
+  return { locale, switchLocale }
 }
 
 // Checks for a newer GitHub release once per app session (roadmap #63) and
