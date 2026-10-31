@@ -40,6 +40,10 @@ interface ControlsProps {
   visible: boolean
   /** Chapter markers drawn on the seek bar (roadmap #61). */
   chapters: Chapter[]
+  /** Current UI language (roadmap #64) -- keeps the selector in sync with
+   * the persisted locale loaded on mount (a hardcoded defaultValue would
+   * show FR while the UI renders in the persisted language). */
+  locale: Locale
   /** Switches the UI language (roadmap #64) and persists it. */
   onSwitchLocale: (locale: Locale) => void
 }
@@ -51,7 +55,7 @@ export function Controls(props: ControlsProps) {
     onToggleSubtitles, onPlayNext, onPlayPrevious, onOpenFile, onOpenDefaultAppsSettings, onTogglePlaylist,
     subTracks, audioTracks, onSelectSubtrack, onDisableSubtitles, onSelectAudioTrack,
     togglePause, toggleFullscreen, setVolume,
-    onSeekChange, onSeekCommit, seekingRef, timePos, duration, visible, chapters, onSwitchLocale,
+    onSeekChange, onSeekCommit, seekingRef, timePos, duration, visible, chapters, locale, onSwitchLocale,
   } = props
   return (
     <div className="controls" role="toolbar" aria-label={t('play')} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
@@ -101,7 +105,7 @@ export function Controls(props: ControlsProps) {
           <span className="sr-only">{t('language')}</span>
           <select
             aria-label={t('language')}
-            defaultValue="fr"
+            value={locale}
             onChange={(e) => onSwitchLocale(e.target.value as Locale)}
             onClick={(e) => e.stopPropagation()}
           >

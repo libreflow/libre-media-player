@@ -474,4 +474,41 @@ describe('arrow-key seeking', () => {
       expect(prevented).toBe(true)
     })
   })
+
+  it('matches the audio-delay brackets on the PHYSICAL key, not e.key (AZERTY)', () => {
+    // Regression: on AZERTY the unshifted BracketLeft/BracketRight keys
+    // produce the dead-key '^', and '[' / ']' need AltGr (a chord, ignored
+    // by the handler) -- so matching on e.key never fired adjustAudioDelay.
+    const adjustAudioDelay = vi.fn()
+    function Harness() {
+      useKeyboardShortcuts({
+        hasMedia: true,
+        volume: 100,
+        isFullscreen: false,
+        isPlaylistOpen: false,
+        togglePause: () => {},
+        toggleFullscreen: () => {},
+        toggleSubtitles: () => {},
+        playNext: () => {},
+        playPrevious: () => {},
+        togglePlaylist: () => {},
+        seekBy: () => {},
+        setVolume: () => {},
+        adjustSubDelay: () => {},
+        adjustAudioDelay,
+        takeScreenshot: () => {},
+      })
+      return null
+    }
+    render(<Harness />)
+    // AZERTY physical bracket keys with the dead-key character as e.key.
+    act(() => press('^', 'BracketLeft'))
+    expect(adjustAudioDelay).toHaveBeenCalledWith(0.1)
+    act(() => press('^', 'BracketRight'))
+    expect(adjustAudioDelay).toHaveBeenCalledWith(-0.1)
+    expect(adjustAudioDelay).toHaveBeenCalledTimes(2)
+    // The classic e.key form still works too.
+    act(() => press('[', 'BracketLeft'))
+    expect(adjustAudioDelay).toHaveBeenCalledTimes(3)
+  })
 })
