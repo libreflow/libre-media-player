@@ -1,6 +1,6 @@
 [package]
 name = "libre-media-player"
-version = "0.1.0"
+version = "0.2.0"
 description = "Libre Media Player - a free (libre) desktop video player built on mpv"
 authors = ["libreflow"]
 license = "MIT"
