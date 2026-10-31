@@ -83,7 +83,19 @@ export async function loadSettings(): Promise<Settings> {
       cachedSettings = { ...DEFAULTS }
       return cachedSettings
     }
-    cachedSettings = { ...DEFAULTS, ...(parsed as Partial<Settings>) }
+    // Validate per key: a syntactically valid but semantically wrong value
+    // (hand-edited file, partial write, older schema) must fall back to the
+    // default for THAT key only, not poison the whole object -- e.g. a
+    // "volume": "abc" used to flow straight into setProperty('volume', ...)
+    // and silently fail at startup.
+    const raw = parsed as Partial<Record<keyof Settings, unknown>>
+    cachedSettings = {
+      volume: typeof raw.volume === 'number' && Number.isFinite(raw.volume) ? raw.volume : DEFAULTS.volume,
+      shuffle: typeof raw.shuffle === 'boolean' ? raw.shuffle : DEFAULTS.shuffle,
+      repeat: typeof raw.repeat === 'boolean' ? raw.repeat : DEFAULTS.repeat,
+      locale: raw.locale === 'fr' || raw.locale === 'en' ? raw.locale : DEFAULTS.locale,
+      preferredAudioLang: typeof raw.preferredAudioLang === 'string' ? raw.preferredAudioLang : DEFAULTS.preferredAudioLang,
+    }
     return cachedSettings
   } catch {
     cachedSettings = { ...DEFAULTS }

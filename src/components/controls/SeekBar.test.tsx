@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { SeekBar } from './SeekBar'
 
 // The seek bar extrapolates playback position between mpv's time-pos ticks
@@ -212,5 +212,52 @@ describe('SeekBar smoothing', () => {
     expect(Number(input.value)).toBeGreaterThan(65)
 
     vi.useRealTimers()
+  })
+
+  it('hover tooltip gets no left offset when duration is 0 (stream/live)', () => {
+    // Regression: the hover guard checked only `duration != null`, so a
+    // duration of 0 (mpv reports 0 for streams/live before metadata) made
+    // hover.pos / 0 * 100 = Infinity and the tooltip rendered at
+    // left: 'Infinity%'. posFromClientX returns null for duration <= 0,
+    // so no hover state is set at all and no tooltip renders.
+    const seekingRef = { current: false }
+    const { container } = render(
+      <SeekBar
+        timePos={5}
+        duration={0}
+        seekingRef={seekingRef}
+        onSeekChange={() => {}}
+        onSeekCommit={() => {}}
+        paused
+        visible
+        chapters={[]}
+      />,
+    )
+    const track = container.querySelector('.seek-track-wrap') as HTMLDivElement
+    fireEvent.pointerMove(track, { clientX: 50 })
+    expect(container.querySelector('.seek-hover')).toBeNull()
+  })
+
+  it('hover tooltip is positioned by percentage when duration is valid', () => {
+    const seekingRef = { current: false }
+    const { container } = render(
+      <SeekBar
+        timePos={5}
+        duration={100}
+        seekingRef={seekingRef}
+        onSeekChange={() => {}}
+        onSeekCommit={() => {}}
+        paused
+        visible
+        chapters={[]}
+      />,
+    )
+    const track = container.querySelector('.seek-track-wrap') as HTMLDivElement
+    // jsdom reports a zero-width rect, so stub getBoundingClientRect.
+    track.getBoundingClientRect = () => ({ left: 0, width: 200, ...{} }) as DOMRect
+    fireEvent.pointerMove(track, { clientX: 100 })
+    const hover = container.querySelector('.seek-hover') as HTMLSpanElement
+    expect(hover).not.toBeNull()
+    expect(hover.style.left).toBe('50%')
   })
 })
