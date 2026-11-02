@@ -96,5 +96,12 @@ ne peut faire autrement.
 
 ## Développement
 
-Template de base : React + TypeScript + Vite (voir
-[vite.dev](https://vite.dev) pour les options HMR/lint génériques).
+```bash
+npm install
+npx tauri-plugin-libmpv-api setup-lib   # requis au premier clone (DLL natives)
+npm run tauri dev                       # application en mode dev
+npm test                                # tests frontend (Vitest)
+```
+
+Pipeline de qualité et de release (lint, builds, bundles Linux/Windows,
+release-please) : voir `docs/RELEASE.md`.
