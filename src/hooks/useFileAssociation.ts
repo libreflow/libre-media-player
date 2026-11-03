@@ -28,6 +28,9 @@ export function useFileAssociation(opts: {
   // exactly why the readiness wait below goes through optsRef rather than
   // a captured closure.
   const optsRef = useRef(opts)
+  // Cancellation flag: a ref because the effect's cleanup writes it, and
+  // locals reassigned after render are flagged by react/immutability.
+  const cancelledRef = useRef(false)
   // Keep the ref in sync inside an effect (not during render) so the
   // once-on-mount effect below still reads fresh opts.
   useEffect(() => {
@@ -35,8 +38,8 @@ export function useFileAssociation(opts: {
   })
 
   useEffect(() => {
-    let cancelled = false
-    let unlisten: (() => void) | undefined
+    cancelledRef.current = false
+    const cancelled = () => cancelledRef.current
 
     const openWhenReady = async (path: string) => {
       // The player's mpv init (see usePlayer) is itself async and may still
@@ -52,24 +55,28 @@ export function useFileAssociation(opts: {
           new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10_000)),
         ])
       } catch {
-        if (cancelled) return
+        if (cancelled()) return
         optsRef.current.onError("Initialisation du lecteur trop lente : impossible d'ouvrir le fichier")
         return
       }
-      if (cancelled) return
+      if (cancelled()) return
       await optsRef.current.loadFile(path)
     }
 
-    ;(async () => {
+    // The open-file subscription resolves only after the cold-start pull
+    // above has finished, so keep it as a promise instead of a `let`
+    // reassigned from the async closure (react/immutability): the cleanup
+    // detaches whichever subscription has settled by then.
+    const unlistenPromise = (async () => {
       try {
         const initialPath = await invoke<string | null>('get_initial_file')
-        if (!cancelled && initialPath) await openWhenReady(initialPath)
+        if (!cancelled() && initialPath) await openWhenReady(initialPath)
       } catch (e) {
-        if (!cancelled) optsRef.current.onError(userFacingMessage("Impossible d'ouvrir le fichier initial.", e).message)
+        if (!cancelled()) optsRef.current.onError(userFacingMessage("Impossible d'ouvrir le fichier initial.", e).message)
       }
 
-      if (cancelled) return
-      unlisten = await listen<string>('open-file', (event) => {
+      if (cancelled()) return null
+      return listen<string>('open-file', (event) => {
         // openWhenReady awaits loadFile, which re-throws after surfacing
         // the error via player.error; catch here so a file forwarded by a
         // second instance that turns out unreadable doesn't leak an
@@ -79,8 +86,8 @@ export function useFileAssociation(opts: {
     })()
 
     return () => {
-      cancelled = true
-      unlisten?.()
+      cancelledRef.current = true
+      void unlistenPromise.then((unlisten) => unlisten?.())
     }
   }, [])
 }

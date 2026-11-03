@@ -95,13 +95,14 @@ export function useResumePosition(ready: boolean, onBeforeSave?: () => Promise<v
   // exit and could lose it.
   useEffect(() => {
     if (!ready) return
-    let unlisten: (() => void) | undefined
-    ;(async () => {
-      unlisten = await getCurrentWindow().onCloseRequested(async () => {
-        await checkpoint()
-      })
-    })()
-    return () => unlisten?.()
+    const unlistenPromise = getCurrentWindow().onCloseRequested(async () => {
+      await checkpoint()
+    })
+    // Promise-based detach instead of a `let` reassigned from the async
+    // closure (react/immutability); see useShortcuts for the rationale.
+    return () => {
+      void unlistenPromise.then((unlisten) => unlisten())
+    }
   }, [ready, checkpoint])
 
   // Memoized so the returned object itself stays referentially stable --
