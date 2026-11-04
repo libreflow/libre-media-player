@@ -66,19 +66,19 @@ export function TrackMenu({ label, tracks, onSelect, onDisable, disabledSelected
               {t('disabled')}
             </button>
           )}
-          {tracks.map((t) => (
+          {tracks.map((track) => (
             <button
-              key={`${t.type}-${t.id}`}
+              key={`${track.type}-${track.id}`}
               type="button"
-              className={`track-menu__item${t.selected && !disabledSelected ? ' is-selected' : ''}`}
+              className={`track-menu__item${track.selected && !disabledSelected ? ' is-selected' : ''}`}
               role="menuitemradio"
-              aria-checked={t.selected && !disabledSelected}
+              aria-checked={track.selected && !disabledSelected}
               onClick={() => {
-                onSelect(t.id)
+                onSelect(track.id)
                 setOpen(false)
               }}
             >
-              {t.title ?? t.lang ?? `Piste ${t.id}`}
+              {track.title ?? track.lang ?? t('track', { id: track.id })}
             </button>
           ))}
         </div>

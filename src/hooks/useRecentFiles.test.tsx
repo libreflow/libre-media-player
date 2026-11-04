@@ -63,6 +63,23 @@ describe('useRecentFiles', () => {
     })
   })
 
+  // Regression test (audit #3): opening a recent never re-recorded the
+  // entry -- it stayed at its old rank/timestamp instead of moving back
+  // to the top like every other open path (picker, drag-drop, playlist).
+  it('openRecent re-records the file so it ranks back at the top', async () => {
+    const loadFile = vi.fn(async () => {})
+    const { result } = renderHook(() =>
+      useRecentFiles({ loadFile, onError: vi.fn() }),
+    )
+    await waitFor(() => {
+      expect(result.current.recents).toHaveLength(2)
+    })
+    act(() => result.current.openRecent('C:/movies/a.mkv'))
+    await waitFor(() => {
+      expect(recentMock.addRecentFile).toHaveBeenCalledWith('C:/movies/a.mkv', 'a.mkv')
+    })
+  })
+
   it('openRecent surfaces loadFile failures through onError', async () => {
     const loadFile = vi.fn(async () => {
       throw new Error('boom')

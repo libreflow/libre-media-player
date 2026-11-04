@@ -101,6 +101,26 @@ describe('usePlaylist.append -- no duplicate entries', () => {
     ])
   })
 
+  // Regression test (audit #3): append used to auto-play its first item
+  // whenever the queue was EMPTY -- which also replaced a file playing
+  // OUTSIDE the queue (opened via file association or the recents list,
+  // which bypass it): the user's playing file was silently lost. With
+  // a file already playing, dropped files must just join the queue.
+  it('does not replace out-of-queue playback: append only queues the files', async () => {
+    const loadFile = vi.fn(async () => {})
+    const { result } = renderHook(() =>
+      usePlaylist({ ready: true, loadFile, hasMedia: true, onError: vi.fn() }),
+    )
+    await act(async () => {
+      result.current.append(['/videos/dropped.mkv'])
+    })
+    // The dropped file joined the queue but the current playback was
+    // not hijacked -- no loadFile call, index still -1.
+    expect(result.current.queue.map((i) => i.path)).toEqual(['/videos/dropped.mkv'])
+    expect(loadFile).not.toHaveBeenCalled()
+    expect(result.current.currentIndex).toBe(-1)
+  })
+
   it('is a no-op (does not call loadFile again) when every path is already queued', async () => {
     const { result, loadFile } = setup()
     await act(async () => {
@@ -328,6 +348,38 @@ describe('usePlaylist shuffle/repeat persistence', () => {
     })
     expect(result.current.shuffle).toBe(false)
     expect(result.current.repeat).toBe(false)
+  })
+
+  // Regression test (audit #3): the mount restore of the persisted
+  // shuffle/repeat raced an early user toggle. loadSettings reads the
+  // disk asynchronously; a toggle issued before it resolved was persisted
+  // by its own updateSettings, then overwritten in the UI by the STALE
+  // persisted value -- the button contradicted both the user and
+  // settings.json. The restore must yield once the user has toggled.
+  it('a persisted-preference restore does not override an early user toggle', async () => {
+    let resolveLoad: (() => void) | null = null
+    loadSettingsMock.mockImplementation(async () => {
+      await new Promise<void>((r) => { resolveLoad = r })
+      return { shuffle: false, repeat: false }
+    })
+    const { result } = renderHook(() =>
+      usePlaylist({ ready: true, loadFile: vi.fn(), onError: vi.fn() }),
+    )
+
+    // The user toggles shuffle while the mount restore is still pending.
+    await act(async () => {
+      result.current.toggleShuffle()
+    })
+    expect(result.current.shuffle).toBe(true)
+    expect(updateSettingsMock).toHaveBeenCalledWith({ shuffle: true })
+
+    // The (now stale) persisted value arrives: it must NOT flip the UI
+    // back to off.
+    await act(async () => {
+      resolveLoad!()
+      await new Promise((r) => setTimeout(r, 0))
+    })
+    expect(result.current.shuffle).toBe(true)
   })
 })
 

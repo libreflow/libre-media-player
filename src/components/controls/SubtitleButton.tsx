@@ -91,7 +91,7 @@ export function SubtitleButton({
               setOpen(false)
             }}
           >
-            Désactivés
+            {translate('disabled')}
           </button>
           {subTracks.map((t) => (
             <button
@@ -105,7 +105,7 @@ export function SubtitleButton({
                 setOpen(false)
               }}
             >
-              {t.title ?? t.lang ?? `Piste ${t.id}`}
+              {t.title ?? t.lang ?? translate('track', { id: t.id })}
             </button>
           ))}
         </div>

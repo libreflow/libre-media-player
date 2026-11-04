@@ -122,7 +122,16 @@ fn focus_main_window(app: &AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let initial_file = find_video_arg(&std::env::args().collect::<Vec<_>>());
+    // args_os + lossy conversion, NOT std::env::args(): the latter PANICS
+    // on any non-UTF-8 argument (e.g. a legacy-code-page path from an old
+    // renamer), which would abort the launch with no window at all. The
+    // lossy conversion matches what tauri-plugin-single-instance itself
+    // does for forwarded launches, so both paths see the same lossy path.
+    let initial_file = find_video_arg(
+        &std::env::args_os()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect::<Vec<_>>(),
+    );
 
     let mut builder = tauri::Builder::default();
 
@@ -136,10 +145,18 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             focus_main_window(app);
             if let Some(path) = find_video_arg(&args) {
-                // The window already exists and the frontend has long since
-                // attached its listener by this point, so a plain emit (no
-                // "is anyone listening yet" race like the startup path below)
-                // is enough to hand off the new file.
+                // Also stash the forwarded path into the initial-file state
+                // BEFORE emitting: during a cold start the frontend has not
+                // attached its open-file listener yet and the emit below is
+                // silently lost -- the later get_initial_file pull still
+                // sees (and plays) the newest requested file instead of
+                // dropping it. Once the app is warm the listener is long
+                // attached and the emit is the fast path.
+                if let Some(state) = app.try_state::<InitialFile>()
+                    && let Ok(mut guard) = state.0.lock()
+                {
+                    *guard = Some(path.clone());
+                }
                 let _ = app.emit("open-file", path);
             }
         }));

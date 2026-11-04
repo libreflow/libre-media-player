@@ -68,4 +68,32 @@ describe('saveResumePosition / getResumePosition', () => {
     await saveResumePosition(PATH, 600, 7200)
     expect(await getResumePosition(PATH)).toBe(600)
   })
+
+  // Regression test (audit #3): saving a NEW entry prunes entries whose
+  // file was deleted from disk, but the pruned map never replaced the
+  // in-memory cache -- the next periodic checkpoint read the UNPRUNED
+  // cache and rewrote the ghost entry to disk, undoing the prune forever
+  // (resume.json grew indefinitely). After a prune, the ghost entry must
+  // stay out of every subsequent save.
+  it('keeps a pruned ghost entry out of subsequent saves', async () => {
+    const GONE = 'C:/movies/deleted.mkv'
+    memory.set(GONE, '') // exists on disk when first saved
+    await saveResumePosition(GONE, 600, 7200)
+    expect(await getResumePosition(GONE)).toBe(600)
+
+    // The file disappears from disk, then another file starts playing:
+    // adding film.mkv (a new entry) triggers the prune.
+    memory.delete(GONE)
+    await saveResumePosition(PATH, 60, 7200)
+
+    // A later periodic checkpoint of film.mkv (not a new entry -- no new
+    // prune pass) must not resurrect deleted.mkv from a stale cache.
+    await saveResumePosition(PATH, 90, 7200)
+    // The mocked path helpers join with a plain '/', so the file lives
+    // under a double-slash path; find it rather than hardcoding it.
+    const resumeKey = [...memory.keys()].find((k) => k.endsWith('resume.json'))
+    const raw = (resumeKey != null ? memory.get(resumeKey) : '') ?? ''
+    expect(raw).not.toContain('deleted.mkv')
+    expect(raw).toContain('film.mkv')
+  })
 })

@@ -171,8 +171,14 @@ export async function saveResumePosition(
         ...(tracks?.aid != null && { aid: tracks.aid }),
       }
       // Prune only when the map grows (a new file started playing), not on
-      // every periodic checkpoint -- see prunedMap's NOTE above.
-      await writeResumeMap(isNewEntry ? await prunedMap(map) : map)
+      // every periodic checkpoint -- see prunedMap's NOTE above. The
+      // pruned map MUST also replace the in-memory cache: prunedMap builds
+      // a NEW object, and leaving cachedMap pointing at the unpruned one
+      // rewrote the deleted file's ghost entry on the next checkpoint,
+      // undoing the prune (resume.json grew forever anyway).
+      const nextMap = isNewEntry ? await prunedMap(map) : map
+      cachedMap = nextMap
+      await writeResumeMap(nextMap)
     } catch {
       // Disk full, permission error, etc. -- silently skip, see above.
     }

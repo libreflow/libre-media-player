@@ -3,6 +3,8 @@
 // single getProperty('chapter-list', 'node') goes through the native
 // wrapper's node-decoding path that is known to crash on some setups.
 
+import { t } from './i18n'
+
 export interface Chapter {
   title: string
   time: number
@@ -19,9 +21,11 @@ export function parseChapters(raw: { time: unknown; title?: unknown }[]): Chapte
     const time = Number(entry.time)
     if (!Number.isFinite(time)) continue
     chapters.push({
+      // Default to a localized "Chapter <n>" label: the UI has two locales
+      // (fr/en), and a hardcoded French title leaked into the EN UI.
       title: typeof entry.title === 'string' && entry.title.length > 0
         ? entry.title
-        : `Chapitre ${chapters.length + 1}`,
+        : `${t('chapter')} ${chapters.length + 1}`,
       time,
     })
   }
