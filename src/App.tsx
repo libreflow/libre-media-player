@@ -39,6 +39,12 @@ function App() {
   // load via the player's onFileLoaded callback.
   const [chapters, setChapters] = useState<Chapter[]>([])
   const chaptersRef = useRef<Chapter[]>([])
+  // Highest load generation that has STARTED a chapter read. ReadChapters
+  // is async: on a rapid A -> B switch, a slow read for A can resolve after
+  // B's and overwrite B's chapters (or A's stale mpv reads mix file states
+  // across the loadfile window). Applying only the LATEST generation's
+  // result keeps the seek bar's markers in sync with the file on screen.
+  const chaptersGenRef = useRef(-1)
   const onError = useCallback((msg: string) => setError(msg), [])
   const subtitles = useSubtitles(onError)
   // Forward BOTH arguments (path AND loadGeneration): usePlayer invokes
@@ -51,13 +57,22 @@ function App() {
   const player = usePlayer((path, loadGeneration) => {
     void subtitles.onFileLoaded(path, loadGeneration)
     // Chapter discovery is best-effort: files without chapters (or an mpv
-    // hiccup) simply render a bare seek bar like before.
+    // hiccup) simply render a bare seek bar like before. Guarded by the
+    // load generation so a stale read from a PREVIOUS file can never
+    // overwrite the current one's chapters.
+    if (loadGeneration > chaptersGenRef.current) {
+      chaptersGenRef.current = loadGeneration
+      setChapters([])
+      chaptersRef.current = []
+    }
     void readChapters((name, format) => getProperty(name, format))
       .then((chapters) => {
+        if (loadGeneration < chaptersGenRef.current) return
         chaptersRef.current = chapters ?? []
         setChapters(chapters ?? [])
       })
       .catch(() => {
+        if (loadGeneration < chaptersGenRef.current) return
         chaptersRef.current = []
         setChapters([])
       })
