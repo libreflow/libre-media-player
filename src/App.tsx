@@ -224,20 +224,32 @@ function App() {
           </button>
         </div>
       )}
+      {/* These overlays sit on top of the video area whose root onClick
+          toggles pause -- stop the propagation so clicking the seek OSD, the
+          drag overlay or a plain notice (screenshot confirmation) does not
+          also pause/play the video. */}
       {seekOsd && hasMedia && (
-        <div className="seek-osd" key={seekOsd.delta + String(seekOsd.at)}>
+        <div
+          className="seek-osd"
+          key={seekOsd.delta + String(seekOsd.at)}
+          onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+        >
           {seekOsd.delta > 0 ? `+${seekOsd.delta}s` : `${seekOsd.delta}s`}
           {seekOsd.at != null && <span className="seek-osd__pos">{formatTime(seekOsd.at)}</span>}
         </div>
       )}
       {isDragOver && (
-        <div className="drag-overlay">{t('dropOverlay')}</div>
+        <div className="drag-overlay" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+          {t('dropOverlay')}
+        </div>
       )}
       {notice && (
         <div
           className="seek-osd"
           role="status"
-          onClick={update != null ? (e) => { e.stopPropagation(); void install() } : undefined}
+          onClick={update != null ? (e) => { e.stopPropagation(); void install() } : (e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
         >
           {notice}
         </div>

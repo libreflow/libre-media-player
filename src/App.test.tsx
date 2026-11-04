@@ -186,3 +186,43 @@ describe('App onSeekCommit swallows mpv rejections (N4)', () => {
     expect(unhandledRejections.length).toBe(before + 1)
   })
 })
+
+// Regression test (audit #3): the root player div toggles pause on click,
+// and the seek-OSD / notice overlays used to NOT stop the propagation -- so
+// clicking the "+10s" OSD (or a screenshot notice) also paused the video.
+describe('App overlays do not toggle pause on click', () => {
+  it('clicking the seek OSD does not call setProperty("pause", ...), clicking the video does', async () => {
+    const { setProperty } = await import('tauri-plugin-libmpv-api')
+    const setPropertyMock = vi.mocked(setProperty)
+    setPropertyMock.mockClear()
+
+    const { container, findByText } = render(<App />)
+    await findByText('Ouvrir une vidéo…')
+
+    await act(async () => {
+      propertyListener!({ name: 'filename', data: 'video.mkv' })
+      propertyListener!({ name: 'duration', data: 100 })
+      propertyListener!({ name: 'time-pos', data: 10 })
+    })
+
+    // ArrowRight shows the seek OSD.
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'ArrowRight' })
+    })
+    const osd = container.querySelector('.seek-osd')
+    expect(osd).not.toBeNull()
+
+    setPropertyMock.mockClear()
+    await act(async () => {
+      fireEvent.click(osd!)
+    })
+    expect(setPropertyMock).not.toHaveBeenCalledWith('pause', expect.anything())
+
+    // Control: a click on the video area itself DOES toggle pause.
+    setPropertyMock.mockClear()
+    await act(async () => {
+      fireEvent.click(container.querySelector('.player')!)
+    })
+    expect(setPropertyMock).toHaveBeenCalledWith('pause', expect.anything())
+  })
+})
