@@ -103,6 +103,28 @@ export async function countSubtitleTracks(): Promise<number> {
   return (await subtitleTracks()).length
 }
 
+// The track id of the EXTERNAL subtitle track (added via sub-add, or
+// auto-loaded by mpv's own --sub-auto=exact same-name discovery) whose
+// source file is `path`, or null when no external track matches. mpv
+// exposes external tracks through the per-track 'external' flag and
+// 'external-filename' properties; paths are compared case-insensitively
+// because both sides derive from the same absolute video path but may
+// differ in separator/case normalization.
+export async function externalSubtitleTrackId(path: string): Promise<number | null> {
+  const count = (await getProperty<number>('track-list/count', 'int64')) ?? 0
+  for (let i = 0; i < count; i++) {
+    const type = await getTrackField<string>(i, 'type', 'string')
+    if (type !== 'sub') continue
+    const external = await getTrackField<boolean>(i, 'external', 'flag')
+    if (external !== true) continue
+    const filename = await getTrackField<string>(i, 'external-filename', 'string')
+    if (filename == null || filename.toLowerCase() !== path.toLowerCase()) continue
+    const id = await getTrackField<number>(i, 'id', 'int64')
+    if (id != null) return id
+  }
+  return null
+}
+
 // mpv's aid/sid properties are MPV_FORMAT_STRING under the hood (accepted
 // values are "<ID>", "auto" or "no" -- see mpv's --aid/--sid docs), even
 // though the ID itself is numeric. Passing a JS number lets TypeScript

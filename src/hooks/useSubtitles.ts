@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   audioTracks,
   countSubtitleTracks,
+  externalSubtitleTrackId,
   findSidecarSubtitle,
   isSubtitleActive,
   loadSubtitle,
@@ -102,11 +103,46 @@ export function useSubtitles(onError?: (msg: string) => void) {
           loadGeneration != null ? { generation: loadGeneration, path: videoPath } : null
         if (sidecar) {
           setAvailable(true)
-          await loadSubtitle(sidecar)
+          // mpv's own --sub-auto=exact already loads (and selects) a
+          // same-basename sidecar at loadfile time, so sub-add it only
+          // when it is NOT already in the track-list -- otherwise the
+          // same external file appears TWICE in the track menu and the
+          // persisted resume sid points at one copy or the other
+          // arbitrarily.
+          let sidecarId = await externalSubtitleTrackId(sidecar)
+          if (sidecarId == null) {
+            await loadSubtitle(sidecar)
+            if (superseded()) return
+            sidecarId = await externalSubtitleTrackId(sidecar)
+          }
+          // Mirror mpv's REAL track state instead of blindly lighting the
+          // CC button: loadFileInner may have just restored a persisted
+          // sid='no' ("Désactivés", the exact incoherence the embedded
+          // branch already handles via isSubtitleActive), in which case
+          // the sidecar must stay hidden.
+          const sid = await selectedSubtitleTrackId()
+          if (sid === 'no') {
+            // The user's persisted choice for this file: subtitles off.
+            setVisible(false)
+          } else if (sid === 'auto') {
+            // Fresh open, no explicit selection. mpv only auto-selects
+            // its OWN --sub-auto discovery; the track we just sub-added
+            // with the 'auto' flag stays unselected (nothing on screen
+            // but a lit button). Select the sidecar so it actually
+            // shows, like mpv's own same-name discovery does.
+            if (sidecarId != null) {
+              await setSubtitleTrack(sidecarId)
+              await setSubtitleVisible(true)
+              setVisible(true)
+            } else {
+              setVisible(false)
+            }
+          } else {
+            // An explicit selection was restored (resume) or made by
+            // mpv: mirror whether it is actually rendered.
+            setVisible(await isSubtitleActive())
+          }
           if (superseded()) return
-          await setSubtitleVisible(true)
-          if (superseded()) return
-          setVisible(true)
         } else {
           // No sidecar, but the container may embed sub tracks (MKV, MP4...).
           // Count only tracks of type 'sub' -- track-list/count would report

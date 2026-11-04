@@ -26,6 +26,12 @@ export function usePlaylist(opts: {
   // a load switch comes from the outgoing file, not a natural EOF, and must
   // not trigger an auto-advance that would race the load in flight.
   loadInFlightRef?: { current: boolean }
+  // Whether mpv currently holds a file (out-of-queue playback -- a file
+  // opened via file association or the recents list bypasses the queue).
+  // append() must NOT auto-play (and abruptly replace that playback) when
+  // something already plays outside the queue: the dropped files just join
+  // the queue behind it.
+  hasMedia?: boolean
   onError: (msg: string) => void
 }) {
   const [queue, setQueue] = useState<PlaylistItem[]>([])
@@ -36,14 +42,21 @@ export function usePlaylist(opts: {
   // Restore the persisted shuffle/repeat preferences once on mount. Like
   // every other settings-backed value (volume), they
   // used to be plain useState(false) and silently reset on every restart.
+  // The restore yields to an early user toggle (racing the async disk
+  // read): without the touched refs, toggling shuffle before loadSettings
+  // landed applied the user's toggle, persisted it, and then had the
+  // stale persisted value overwrite the UI state -- contradicting both
+  // the user and settings.json until the next toggle.
+  const shuffleTouchedRef = useRef(false)
+  const repeatTouchedRef = useRef(false)
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
         const settings = await loadSettings()
         if (cancelled) return
-        setShuffleState(settings.shuffle)
-        setRepeatState(settings.repeat)
+        if (!shuffleTouchedRef.current) setShuffleState(settings.shuffle)
+        if (!repeatTouchedRef.current) setRepeatState(settings.repeat)
       } catch {
         // best-effort; defaults (false) apply
       }
@@ -93,8 +106,19 @@ export function usePlaylist(opts: {
     [],
   )
 
-  // Append files to the queue. When the queue was empty, the first file is
-  // played immediately (standard player behavior).
+  // mpv playback state mirror (render-synced like the refs above): lets
+  // append's auto-play guard see whether a file plays OUTSIDE the queue
+  // (file association / recents bypass it) without the hook knowing the
+  // player itself.
+  const playingRef = useRef(!!opts.hasMedia)
+  playingRef.current = !!opts.hasMedia
+
+  // Append files to the queue. When the queue was empty AND nothing is
+  // playing, the first file is played immediately (standard player
+  // behavior). A file playing outside the queue (opened via file
+  // association or the recents list) must keep playing: dropping files
+  // used to trigger the auto-play and abruptly REPLACE that playback --
+  // the user's open was lost with no way back through prev/next.
   //
   // Paths already present in the queue (including the currently-playing
   // one) are skipped: dropping/multi-picking a file that's already queued
@@ -115,7 +139,7 @@ export function usePlaylist(opts: {
       const wasEmpty = queueRef.current.length === 0
       queueRef.current = [...queueRef.current, ...items]
       setQueue(queueRef.current)
-      if (wasEmpty) void playIndex(0)
+      if (wasEmpty && !playingRef.current) void playIndex(0)
     },
     [playIndex],
   )
@@ -260,11 +284,13 @@ export function usePlaylist(opts: {
   // toggles land before the next commit.
   const toggleShuffle = useCallback(() => {
     const next = !shuffleRef.current
+    shuffleTouchedRef.current = true
     setShuffleState(next)
     void updateSettings({ shuffle: next })
   }, [])
   const toggleRepeat = useCallback(() => {
     const next = !repeatRef.current
+    repeatTouchedRef.current = true
     setRepeatState(next)
     void updateSettings({ repeat: next })
   }, [])

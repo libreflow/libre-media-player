@@ -95,7 +95,19 @@ function App() {
     // too. The dialog always returns an array (multiple: true), so one
     // callback covers both.
     onFilesDropped: (paths) => {
-      if (player.readyRef.current) playlist.append(paths)
+      // A drop during mpv init must not be silently discarded (the old
+      // readyRef guard just threw the paths away -- no playback, no error):
+      // wait for readiness like file association does, with the same
+      // 10-second timeout, then queue the files.
+      void Promise.race([
+        player.whenReady(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 10_000),
+        ),
+      ]).then(
+        () => playlist.append(paths),
+        () => onError(t('errInitSlow')),
+      )
     },
     onError,
   })
@@ -103,6 +115,7 @@ function App() {
     ready: player.ready,
     loadFile,
     loadInFlightRef: player.loadInFlightRef,
+    hasMedia: player.filename != null,
     stopPlayback: () => void player.stopPlayback(),
     onError,
   })

@@ -40,6 +40,8 @@ const fr = {
   chooseSubtrack: 'Choisir la piste de sous-titres',
   noSubtitles: 'Aucun sous-titre trouvé',
   disabled: 'Désactivées',
+  // Fallback label for an unnamed track in the track menus.
+  track: 'Piste {id}',
   // Playlist panel
   queueTitle: 'File d’attente ({count})',
   shuffle: 'Lecture aléatoire',
@@ -60,6 +62,7 @@ const fr = {
   errSelectAudio: 'Sélection de la piste audio impossible : {err}',
   errQueue: 'File d’attente indisponible : {err}',
   errPicker: 'Impossible d’ouvrir le sélecteur de fichier : {err}',
+  errInitSlow: 'Initialisation du lecteur trop lente : impossible d’ouvrir le fichier.',
   // mpv error descriptions (#57)
   errFileNotFound: 'Fichier introuvable ou inaccessible.',
   errPermission: 'Accès au fichier refusé — vérifiez les permissions de lecture.',
@@ -109,6 +112,7 @@ const en: Record<MessageKey, string> = {
   chooseSubtrack: 'Choose subtitle track',
   noSubtitles: 'No subtitles found',
   disabled: 'Disabled',
+  track: 'Track {id}',
   queueTitle: 'Queue ({count})',
   shuffle: 'Shuffle',
   repeat: 'Repeat queue',
@@ -126,6 +130,7 @@ const en: Record<MessageKey, string> = {
   errSelectAudio: 'Cannot select audio track: {err}',
   errQueue: 'Queue unavailable: {err}',
   errPicker: 'Cannot open the file picker: {err}',
+  errInitSlow: 'Player initialization is too slow: cannot open the file.',
   errFileNotFound: 'File not found or inaccessible.',
   errPermission: 'Access to the file denied — check read permissions.',
   errFormat: 'Unrecognized format or corrupt file — cannot open this file.',

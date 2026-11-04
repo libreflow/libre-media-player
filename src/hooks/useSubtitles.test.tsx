@@ -92,6 +92,14 @@ describe('useSubtitles sidecar reload for the same path', () => {
     const { command } = await import('tauri-plugin-libmpv-api')
     const commandMock = vi.mocked(command)
     commandMock.mockClear()
+    // The new sidecar branch mirrors mpv's real selection: a track is
+    // selected (sid=1) and visible, so the CC button reflects visible=true.
+    getPropertyMock.mockImplementation(async (name: string): Promise<unknown> => {
+      if (name === 'track-list/count') return 0
+      if (name === 'sid') return '1'
+      if (name === 'sub-visibility') return true
+      throw new Error(`unexpected property: ${name}`)
+    })
 
     const { result } = renderHook(() => useSubtitles())
 
@@ -170,6 +178,14 @@ describe('useSubtitles onFileLoaded out-of-order guard', () => {
     const { command } = await import('tauri-plugin-libmpv-api')
     const commandMock = vi.mocked(command)
     commandMock.mockClear()
+    // The new sidecar branch mirrors mpv's real selection: a track is
+    // selected (sid=1) and visible, so B's state lands on visible=true.
+    getPropertyMock.mockImplementation(async (name: string): Promise<unknown> => {
+      if (name === 'track-list/count') return 0
+      if (name === 'sid') return '1'
+      if (name === 'sub-visibility') return true
+      throw new Error(`unexpected property: ${name}`)
+    })
 
     const { result } = renderHook(() => useSubtitles())
 
@@ -242,7 +258,7 @@ describe('useSubtitles onFileLoaded same-path rapid reload (N3)', () => {
     })
     getPropertyMock.mockImplementation(async (name: string): Promise<unknown> => {
       if (name === 'track-list/count') return 0
-      if (name === 'sid') return 'no'
+      if (name === 'sid') return '1'
       if (name === 'sub-visibility') return true
       throw new Error(`unexpected property: ${name}`)
     })
@@ -286,6 +302,107 @@ describe('useSubtitles onFileLoaded same-path rapid reload (N3)', () => {
 // newer file's -- the track menu then shows the wrong file's tracks.
 // The fix threads onFileLoaded's sequence guard into refreshTracks so a
 // stale refresh bails before every setState.
+// Regression tests (audit #3): the sidecar branch used to sub-add the
+// discovered sidecar unconditionally (a same-basename file is ALSO loaded
+// by mpv's own --sub-auto=exact, so it appeared twice in the track menu)
+// and to force the CC button on regardless of mpv's real state (a file
+// with a persisted sid='no' -- "Désactivés" -- reopened with the button lit
+// and nothing on screen).
+describe('useSubtitles sidecar dedupe and persisted selection', () => {
+  it('does not re-add a sidecar mpv already auto-loaded (no duplicate track)', async () => {
+    existsMock.mockImplementation(async (p: string | URL) => String(p).endsWith('/video.srt'))
+    const { command } = await import('tauri-plugin-libmpv-api')
+    const commandMock = vi.mocked(command)
+    commandMock.mockClear()
+    // mpv's --sub-auto already put the sidecar in the track-list as an
+    // external, selected track.
+    getPropertyMock.mockImplementation(async (name: string): Promise<unknown> => {
+      if (name === 'track-list/count') return 1
+      if (name === 'track-list/0/type') return 'sub'
+      if (name === 'track-list/0/external') return true
+      if (name === 'track-list/0/external-filename') return '/tmp/video.srt'
+      if (name === 'track-list/0/id') return 1
+      if (name === 'sid') return '1'
+      if (name === 'sub-visibility') return true
+      throw new Error(`unexpected property: ${name}`)
+    })
+
+    const { result } = renderHook(() => useSubtitles())
+
+    await act(async () => {
+      await result.current.onFileLoaded('/tmp/video.mkv', 1)
+    })
+
+    expect(commandMock.mock.calls.filter((c) => c[0] === 'sub-add')).toHaveLength(0)
+    expect(result.current.available).toBe(true)
+    expect(result.current.visible).toBe(true)
+  })
+
+  it('keeps the CC button off when a persisted sid=no was restored on reopen', async () => {
+    existsMock.mockImplementation(async (p: string | URL) => String(p).endsWith('/video.srt'))
+    const { command } = await import('tauri-plugin-libmpv-api')
+    const commandMock = vi.mocked(command)
+    commandMock.mockClear()
+    // Nothing in the track-list yet, and loadFileInner restored the user's
+    // persisted "Désactivés" choice (sid=no, sub-visibility still yes).
+    getPropertyMock.mockImplementation(async (name: string): Promise<unknown> => {
+      if (name === 'track-list/count') return 0
+      if (name === 'sid') return 'no'
+      if (name === 'sub-visibility') return true
+      throw new Error(`unexpected property: ${name}`)
+    })
+
+    const { result } = renderHook(() => useSubtitles())
+
+    await act(async () => {
+      await result.current.onFileLoaded('/tmp/video.mkv', 1)
+    })
+
+    // The sidecar is added (it wasn't in the track-list) but stays hidden:
+    // no lit CC button over an unselected track.
+    expect(commandMock).toHaveBeenCalledWith('sub-add', ['/tmp/video.srt', 'auto'])
+    expect(result.current.available).toBe(true)
+    expect(result.current.visible).toBe(false)
+  })
+
+  it('selects a fresh unselected sidecar so it shows like mpv\'s own discovery', async () => {
+    existsMock.mockImplementation(async (p: string | URL) => String(p).endsWith('/video.srt'))
+    const { command, setProperty } = await import('tauri-plugin-libmpv-api')
+    const commandMock = vi.mocked(command)
+    const setPropertyMock = vi.mocked(setProperty)
+    commandMock.mockClear()
+    setPropertyMock.mockClear()
+    // The sidecar is NOT in the track-list until our sub-add command runs
+    // (a language-variant sidecar mpv's --sub-auto can't discover); after
+    // that the new track exists (id 2) but stays unselected (sid auto)
+    // because sub-add was fired with the 'auto' flag.
+    let sidecarInTrack = false
+    commandMock.mockImplementation(async (cmd: string) => {
+      if (cmd === 'sub-add') sidecarInTrack = true
+    })
+    getPropertyMock.mockImplementation(async (name: string): Promise<unknown> => {
+      if (name === 'track-list/count') return sidecarInTrack ? 1 : 0
+      if (name === 'track-list/0/type') return 'sub'
+      if (name === 'track-list/0/external') return true
+      if (name === 'track-list/0/external-filename') return '/tmp/video.srt'
+      if (name === 'track-list/0/id') return 2
+      if (name === 'sid') return 'auto'
+      if (name === 'sub-visibility') return true
+      throw new Error(`unexpected property: ${name}`)
+    })
+
+    const { result } = renderHook(() => useSubtitles())
+
+    await act(async () => {
+      await result.current.onFileLoaded('/tmp/video.mkv', 1)
+    })
+
+    expect(commandMock).toHaveBeenCalledWith('sub-add', ['/tmp/video.srt', 'auto'])
+    expect(setPropertyMock).toHaveBeenCalledWith('sid', '2')
+    expect(result.current.visible).toBe(true)
+  })
+})
+
 describe('useSubtitles stale refreshTracks does not overwrite newer tracks (N2)', () => {
   it('a stale refreshTracks does not overwrite the newer file\'s subTracks', async () => {
     // getTracks reads 'track-list/count' first, then per-track fields.

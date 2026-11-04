@@ -297,7 +297,11 @@ export function usePlayer(
   // the bar simply floats above it with a gradient fade. Nothing to sync
   // anymore.
 
-  // Flush a pending debounced volume save on unmount instead of dropping it.
+  // Cancel a pending debounced volume save on unmount. A real quit flushes
+  // the pending value through the close checkpoint (captureTrackSelection
+  // flushes it before persisting resume state); this cleanup only guards
+  // dev StrictMode remounts, where dropping the save is harmless (the next
+  // mount re-reads the persisted settings).
   useEffect(() => () => {
     if (volumeSaveTimerRef.current) {
       clearTimeout(volumeSaveTimerRef.current)

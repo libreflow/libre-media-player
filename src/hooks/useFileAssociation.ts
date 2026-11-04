@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { userFacingMessage } from '../errors'
+import { t } from '../i18n'
 
 // Handles two distinct ways Libre Media Player can be told to open a file from outside
 // its own UI (double-clicking a video in Explorer, "Open with" context menu):
@@ -28,9 +29,6 @@ export function useFileAssociation(opts: {
   // exactly why the readiness wait below goes through optsRef rather than
   // a captured closure.
   const optsRef = useRef(opts)
-  // Cancellation flag: a ref because the effect's cleanup writes it, and
-  // locals reassigned after render are flagged by react/immutability.
-  const cancelledRef = useRef(false)
   // Keep the ref in sync inside an effect (not during render) so the
   // once-on-mount effect below still reads fresh opts.
   useEffect(() => {
@@ -38,8 +36,13 @@ export function useFileAssociation(opts: {
   })
 
   useEffect(() => {
-    cancelledRef.current = false
-    const cancelled = () => cancelledRef.current
+    // Cancellation is a PER-MOUNT token (not an instance ref): StrictMode's
+    // simulated unmount/remount would rearm a shared ref, letting the first
+    // mount's in-flight work continue after its cleanup -- a double
+    // loadFile for the initial file and a second open-file subscription
+    // racing the first. A local token can only be rearmed by its own
+    // effect run.
+    const token = { cancelled: false }
 
     const openWhenReady = async (path: string) => {
       // The player's mpv init (see usePlayer) is itself async and may still
@@ -55,39 +58,43 @@ export function useFileAssociation(opts: {
           new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10_000)),
         ])
       } catch {
-        if (cancelled()) return
-        optsRef.current.onError("Initialisation du lecteur trop lente : impossible d'ouvrir le fichier")
+        if (token.cancelled) return
+        optsRef.current.onError(t('errInitSlow'))
         return
       }
-      if (cancelled()) return
+      if (token.cancelled) return
       await optsRef.current.loadFile(path)
     }
 
-    // The open-file subscription resolves only after the cold-start pull
-    // above has finished, so keep it as a promise instead of a `let`
-    // reassigned from the async closure (react/immutability): the cleanup
-    // detaches whichever subscription has settled by then.
-    const unlistenPromise = (async () => {
+    // Subscribe to open-file BEFORE pulling the initial file: a second
+    // launch's forwarded path can arrive while the cold-start pull (and
+    // the mpv readiness wait behind it) is still pending, and an emit
+    // against a not-yet-attached listener is silently lost. The Rust
+    // single-instance callback also stashes the forwarded path into the
+    // initial-file state, so the pull below still catches a forward that
+    // raced ahead of this subscription.
+    const unlistenPromise = listen<string>('open-file', (event) => {
+      // openWhenReady awaits loadFile, which re-throws after surfacing
+      // the error via player.error; catch here so a file forwarded by a
+      // second instance that turns out unreadable doesn't leak an
+      // unhandled rejection from this fire-and-forget listener.
+      void openWhenReady(event.payload).catch(() => {})
+    })
+
+    ;(async () => {
       try {
         const initialPath = await invoke<string | null>('get_initial_file')
-        if (!cancelled() && initialPath) await openWhenReady(initialPath)
+        if (!token.cancelled && initialPath) await openWhenReady(initialPath)
       } catch (e) {
-        if (!cancelled()) optsRef.current.onError(userFacingMessage("Impossible d'ouvrir le fichier initial.", e).message)
+        if (!token.cancelled) {
+          optsRef.current.onError(userFacingMessage("Impossible d'ouvrir le fichier initial.", e).message)
+        }
       }
-
-      if (cancelled()) return null
-      return listen<string>('open-file', (event) => {
-        // openWhenReady awaits loadFile, which re-throws after surfacing
-        // the error via player.error; catch here so a file forwarded by a
-        // second instance that turns out unreadable doesn't leak an
-        // unhandled rejection from this fire-and-forget listener.
-        void openWhenReady(event.payload).catch(() => {})
-      })
     })()
 
     return () => {
-      cancelledRef.current = true
-      void unlistenPromise.then((unlisten) => unlisten?.())
+      token.cancelled = true
+      void unlistenPromise.then((unlisten) => unlisten(), () => {})
     }
   }, [])
 }

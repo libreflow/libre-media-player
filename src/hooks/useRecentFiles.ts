@@ -45,11 +45,24 @@ export function useRecentFiles(opts: {
       .catch(() => {})
   }, [])
 
-  const openRecent = useCallback((path: string) => {
-    void optsRef.current.loadFile(path).catch((e) => {
-      optsRef.current.onError(userFacingMessage("Impossible d'ouvrir ce fichier.", e).message)
-    })
-  }, [])
+  const openRecent = useCallback(
+    (path: string) => {
+      void optsRef.current
+        .loadFile(path)
+        .then(() => {
+          // Re-record the file on every successful open so it moves back
+          // to the top of the list with a fresh timestamp. This hook's
+          // loadFile is the player's raw loader (App wraps its own copy
+          // with recordOpened for every other entry point); without this,
+          // opening from the recents list never re-ranked the entry.
+          recordOpened(path)
+        })
+        .catch((e) => {
+          optsRef.current.onError(userFacingMessage("Impossible d'ouvrir ce fichier.", e).message)
+        })
+    },
+    [recordOpened],
+  )
 
   const clear = useCallback(() => {
     void clearRecentFiles()
