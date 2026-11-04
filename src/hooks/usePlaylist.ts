@@ -3,6 +3,8 @@ import { command, listenEvents, type MpvEvent } from 'tauri-plugin-libmpv-api'
 import { loadSettings, updateSettings } from '../settings'
 import { basename } from '../utils'
 import { userFacingMessage } from '../errors'
+import { t } from '../i18n'
+import { describeEndFileError } from '../mpvErrors'
 
 export interface PlaylistItem {
   path: string
@@ -233,22 +235,29 @@ export function usePlaylist(opts: {
   // 'redirect'/'stop' and are user-driven anyway).
   useEffect(() => {
     if (!opts.ready) return
-    let unlisten: (() => void) | undefined
     let cancelled = false
-    ;(async () => {
-      try {
-        unlisten = await listenEvents((mpvEvent: MpvEvent) => {
+    // Detached via the promise, not a `let` the async closure reassigns:
+    // an unmount racing the not-yet-attached listener used to leak it
+    // forever (the cleanup saw `unlisten` still undefined).
+    const unlistenPromise = listenEvents((mpvEvent: MpvEvent) => {
           if (mpvEvent.event !== 'end-file') return
+          // A load switch's end-file comes from the OUTGOING file, not a
+          // natural end -- never advance nor surface it.
           if (opts.loadInFlightRef?.current) return
           if (mpvEvent.reason === 'eof') playNext()
-        })
-      } catch (e) {
-        if (!cancelled) opts.onError(userFacingMessage("La file d'attente est indisponible.", e).message)
-      }
-    })()
+          // mpv rejects unreadable/corrupt files ASYNCHRONOUSLY (loadfile
+          // resolves fine): without this branch the failure was 100% silent
+          // -- frozen screen or home stuck, no banner. Do NOT auto-advance
+          // on error: the natural-EOL path is the user's queue decision.
+          else if (mpvEvent.reason === 'error') opts.onError(describeEndFileError())
+    }).catch((e) => {
+      if (!cancelled) opts.onError(userFacingMessage(t('errPlaylistBad'), e).message)
+    })
     return () => {
       cancelled = true
-      unlisten?.()
+      // The catch handler resolves the chain to void on a failed attach:
+      // optional-call keeps both constituents valid.
+      void unlistenPromise.then((unlisten) => { unlisten?.() }, () => {})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: playNext reads refs and is stable
   }, [opts.ready, playNext])

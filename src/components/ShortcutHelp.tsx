@@ -1,3 +1,5 @@
+
+import { useRef } from 'react'
 import { t, type MessageKey } from '../i18n'
 
 interface ShortcutHelpProps {
@@ -26,13 +28,35 @@ function Row({ keys, labelKey }: { keys: string[]; labelKey: MessageKey }) {
 // 'h' physical key or the '?' button in the control bar, closed with
 // Escape (topmost-layer priority).
 export function ShortcutHelp({ open, onClose }: ShortcutHelpProps) {
+  const panelRef = useRef<HTMLDivElement | null>(null)
   if (!open) return null
+
+  // Focus trap: the overlay dims the app behind it, but focus could still
+  // Tab out into the (hidden) controls -- Space/arrows there acted on the
+  // video THROUGH the backdrop. Wrapping keeps focus inside the dialog.
+  const onTabPressed = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Tab') return
+    const focusables = panelRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input, select, [tabindex]:not([tabindex="-1"])',
+    )
+    if (!focusables || focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
   return (
     <div
       className="shortcuts-help"
       role="dialog"
-      aria-modal="false"
+      aria-modal="true"
       aria-label={t('helpTitle')}
+      onKeyDown={onTabPressed}
       onClick={(e) => {
         e.stopPropagation()
         // Clicking the dimmed backdrop closes the overlay -- the gesture
@@ -41,7 +65,7 @@ export function ShortcutHelp({ open, onClose }: ShortcutHelpProps) {
       }}
       onDoubleClick={(e) => e.stopPropagation()}
     >
-      <div className="shortcuts-help__panel">
+      <div className="shortcuts-help__panel" ref={panelRef}>
         <div className="shortcuts-help__title">{t('helpTitle')}</div>
         <div className="shortcuts-help__grid">
           <Row keys={[t('kbdSpace'), 'K']} labelKey="scPlayPause" />

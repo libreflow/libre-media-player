@@ -383,6 +383,33 @@ describe('usePlaylist shuffle/repeat persistence', () => {
   })
 })
 
+// Regression (audit final B1): mpv rejects unreadable/corrupt files
+// ASYNCHRONOUSLY -- loadfile resolves, then an end-file reason='error'
+// arrives. Without the banner branch the failure was 100% silent (frozen
+// picture, home stuck, dead path still recorded in the recents).
+describe('usePlaylist end-file error surfaces a banner', () => {
+  it('reports an error via onError and does NOT auto-advance', async () => {
+    const loadFile = vi.fn(async () => {})
+    const onError = vi.fn()
+    const { result } = renderHook(() =>
+      usePlaylist({ ready: true, loadFile, onError }),
+    )
+    await act(async () => {
+      result.current.append(['/videos/a.mkv'])
+    })
+    expect(result.current.currentIndex).toBe(0)
+    const before = loadFile.mock.calls.length
+
+    await act(async () => {
+      mpvEventsCb!({ event: 'end-file', reason: 'error' })
+    })
+    expect(onError).toHaveBeenCalledTimes(1)
+    // Not a natural EOF: no auto-advance to another item.
+    expect(loadFile.mock.calls.length).toBe(before)
+    expect(result.current.currentIndex).toBe(0)
+  })
+})
+
 // Regression tests for two unhandled-rejection / ghost-playback bugs:
 // - playIndex used to let loadFile's rejection escape; every caller is
 //   fire-and-forget (void playIndex(...)), so a corrupt queued file leaked

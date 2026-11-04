@@ -26,12 +26,6 @@ export async function screenshotPath(
   return path
 }
 
-// mpv arguments for the capture: subtitles included, no OSD (the app
-// shows its own confirmation).
-export function screenshotArgs(destPath: string): (string | boolean | number)[] {
-  return [destPath, 'subtitles', false]
-}
-
 export function screenshotFileName(videoPath: string): string {
   return `${basename(videoPath)}.png`
 }

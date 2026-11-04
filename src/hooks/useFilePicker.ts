@@ -3,6 +3,7 @@ import { open as openFileDialog } from '@tauri-apps/plugin-dialog'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { hasVideoExtension, pickSupportedFile, VIDEO_EXTENSIONS } from '../utils'
 import { userFacingMessage } from '../errors'
+import { t } from '../i18n'
 
 // File picking via the native dialog + acceptance of files dropped onto the
 // window (native OS drag-drop, not the HTML5 DnD API — mpv's video surface
@@ -19,9 +20,9 @@ export function useFilePicker(opts: {
   const openFile = async () => {
     try {
       const paths = await openFileDialog({
-        title: 'Ouvrir une vidéo',
+        title: t('dialogTitle'),
         multiple: true,
-        filters: [{ name: 'Vidéo', extensions: VIDEO_EXTENSIONS }],
+        filters: [{ name: t('dialogFilterName'), extensions: VIDEO_EXTENSIONS }],
       })
       if (!paths) return
       // Keep only actual video files, mirroring the drag-drop path below:
@@ -39,14 +40,15 @@ export function useFilePicker(opts: {
         await opts.loadFile(videos[0])
       }
     } catch (e) {
-      opts.onError(userFacingMessage("Impossible d'ouvrir le sélecteur de fichier.", e).message)
+      opts.onError(userFacingMessage(t('errDialogBad'), e).message)
     }
   }
 
   useEffect(() => {
-    let unlisten: (() => void) | undefined
-    ;(async () => {
-      unlisten = await getCurrentWebview().onDragDropEvent((event) => {
+    // Detached via the promise, not a `let` the async closure reassigns:
+    // an unmount racing the not-yet-attached listener used to leak it
+    // forever on the drag-drop entry point.
+    const unlistenPromise = getCurrentWebview().onDragDropEvent((event) => {
         if (event.payload.type === 'enter') setIsDragOver(true)
         if (event.payload.type === 'leave') setIsDragOver(false)
         if (event.payload.type === 'drop') {
@@ -66,9 +68,10 @@ export function useFilePicker(opts: {
             if (path && opts.readyRef.current) void opts.loadFile(path).catch(() => {})
           }
         }
-      })
-    })()
-    return () => unlisten?.()
+    })
+    return () => {
+      void unlistenPromise.then((unlisten) => unlisten(), () => {})
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: loadFile is referentially stable (usePlayer's useCallback now depends on useResumePosition's memoized return object)
   }, [opts.loadFile])
 

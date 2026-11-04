@@ -13,6 +13,7 @@ import { describeLoadError } from '../mpvErrors'
 import { screenshotPath } from '../screenshot'
 import { exists } from '@tauri-apps/plugin-fs'
 import { userFacingMessage } from '../errors'
+import { t } from '../i18n'
 import { useResumePosition } from './useResumePosition'
 import { nextPlaybackSpeed } from '../utils'
 
@@ -205,6 +206,12 @@ export function usePlayer(
           if (event.data) void resume.checkpoint()
           break
         case 'time-pos':
+          // Skip the transition window: the OLD file keeps emitting until
+          // the new one starts, and after onFileChangeIncoming the tracked
+          // path already points at the NEW file -- a tick landing in that
+          // gap saved A's position under B's key (the guard documented in
+          // loadFileInner's comments, applied here where the ticks land).
+          if (loadInFlightRef.current) break
           resume.track({ timePos: event.data })
           if (!seekingRef.current) setTimePos(event.data)
           break
@@ -285,7 +292,7 @@ export function usePlayer(
     })
     void doInit(signal).catch((e) => {
       if (signal.cancelled) return
-      setError(userFacingMessage("Échec d'initialisation du lecteur.", e).message)
+      setError(userFacingMessage(t('errInitEngine'), e).message)
     })
   }, [doInit])
 
@@ -298,7 +305,9 @@ export function usePlayer(
 
     void doInit(signal).catch((e) => {
       if (signal.cancelled) return
-      setError(`Échec d'initialisation du lecteur : ${String(e)}`)
+      // Same mapping as retryInit: the raw technical reason (e.g. a missing
+      // DLL name) must not leak to the banner -- only the summary.
+      setError(userFacingMessage(t('errInitEngine'), e).message)
     })
 
     return () => {
@@ -467,17 +476,37 @@ export function usePlayer(
   // is returned so the caller can display it without awaiting the property
   // observer round-trip.
   const adjustSpeed = useCallback((delta: number): number => {
-    const next = nextPlaybackSpeed(speedRef.current, delta)
-    speedRef.current = next
-    setSpeedState(next)
-    void setProperty('speed', next).catch(() => {})
-    return next
+    const apply = (): number => {
+      const next = nextPlaybackSpeed(speedRef.current, delta)
+      speedRef.current = next
+      setSpeedState(next)
+      void setProperty('speed', next).catch(() => {})
+      return next
+    }
+    // A load is mid-flight: mpv applies reset-on-next-file when the new
+    // file starts, which would fight a delta applied NOW (the mirror was
+    // already reset to 1). Queue the delta behind the load instead of
+    // dropping the keypress -- the returned value is the best immediate
+    // approximation for the OSD (the chain resolves in well under a
+    // second).
+    if (loadInFlightRef.current) {
+      const chained = loadChainRef.current.then(() => {
+        void apply()
+      })
+      loadChainRef.current = chained.catch(() => {})
+      return nextPlaybackSpeed(1, delta)
+    }
+    return apply()
   }, [])
 
   const togglePause = useCallback(() => {
     const next = !pausedRef.current
     pausedRef.current = next
-    void setProperty('pause', next)
+    void setProperty('pause', next).catch(() => {
+      // mpv didn't take it (instance busy/destroyed): roll the optimistic
+      // flip back so the next flash icon reflects the REAL state.
+      pausedRef.current = !next
+    })
   }, [])
 
   // Stops playback and clears the current file, returning the player to
@@ -522,8 +551,18 @@ export function usePlayer(
     const videoPath = currentPathRef.current
     if (!videoPath) throw new Error('aucune vidéo en lecture')
     const dest = await screenshotPath(videoPath, screenshotTakenRef.current, exists)
-    await command('screenshot-to-file', [dest, 'subtitles'])
+    // Reserve the destination BEFORE the round-trip: two rapid presses
+    // (key auto-repeat) computed the SAME free name while the first
+    // capture was in flight, and mpv refuses to overwrite -- the second
+    // one always failed. Rolled back when the capture truly fails, so
+    // the slot stays usable.
     screenshotTakenRef.current.add(dest.toLowerCase())
+    try {
+      await command('screenshot-to-file', [dest, 'subtitles'])
+    } catch (e) {
+      screenshotTakenRef.current.delete(dest.toLowerCase())
+      throw e
+    }
     return dest
   }, [])
 
@@ -535,7 +574,7 @@ export function usePlayer(
   const pendingVolumeRef = useRef<number | null>(null)
   const setVolume = useCallback((v: number) => {
     setVolumeState(v)
-    void setProperty('volume', v)
+    void setProperty('volume', v).catch(() => {})
     pendingVolumeRef.current = v
     if (volumeSaveTimerRef.current) clearTimeout(volumeSaveTimerRef.current)
     volumeSaveTimerRef.current = setTimeout(() => {

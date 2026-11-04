@@ -28,6 +28,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: vi.fn(() => ({
     onCloseRequested: vi.fn(async () => () => {}),
+    onResized: vi.fn(async () => () => {}),
   })),
 }))
 
@@ -228,8 +229,10 @@ describe('usePlayer retryInit after a failed init', () => {
     }
     render(<Harness />)
 
-    // The first init failed: ready is false and error is set.
-    await waitFor(() => expect(holder.current!.error).toContain('initialisation'))
+    // The first init failed: ready is false and error is set to the
+    // localized mpv-engine summary (t('errInitEngine') in FR mentions the
+    // "moteur de lecture").
+    await waitFor(() => expect(holder.current!.error).toContain('moteur de lecture'))
     expect(holder.current!.ready).toBe(false)
 
     // Retry: clears the rejected promise and re-runs init, which now

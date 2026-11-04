@@ -527,6 +527,53 @@ describe('arrow-key seeking', () => {
   })
 })
 
+// Regression (audit final #3): a focused <select> (the language switch)
+// used to trigger the global shortcuts on top of its native arrow
+// navigation -- pressing the arrow changed the language AND seeked/adjusted
+// the volume at the same time.
+describe('focused form controls keep native key behavior', () => {
+  it('does not seek or adjust volume while a select is focused', () => {
+    const seekBy = vi.fn()
+    const setVolume = vi.fn()
+    function Harness() {
+      useKeyboardShortcuts({
+        hasMedia: true,
+        volume: 100,
+        isFullscreen: false,
+        isPlaylistOpen: false,
+        togglePause: () => {},
+        toggleFullscreen: () => {},
+        toggleSubtitles: () => {},
+        playNext: () => {},
+        playPrevious: () => {},
+        togglePlaylist: () => {},
+        seekBy,
+        setVolume,
+        adjustSubDelay: () => {},
+        adjustAudioDelay: () => {},
+        takeScreenshot: () => {},
+        adjustSpeed: () => {},
+      })
+      return (
+        <select data-testid="lang" aria-label="language">
+          <option value="fr">FR</option>
+          <option value="en">EN</option>
+        </select>
+      )
+    }
+    const { getByTestId } = render(<Harness />)
+    const select = getByTestId('lang')
+    act(() => {
+      select.focus()
+      select.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', bubbles: true, cancelable: true }),
+      )
+    })
+    expect(seekBy).not.toHaveBeenCalled()
+    expect(setVolume).not.toHaveBeenCalled()
+  })
+})
+
 // Playback speed shortcuts (roadmap follow-up): mpv's own < / > speed
 // bindings are SHIFTED characters on most layouts (QWERTY: Shift+Comma and
 // Shift+Period) and plain dead/reserved keys elsewhere (AZERTY: the

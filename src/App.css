@@ -962,7 +962,35 @@ button.playlist-panel__name {
    used to share (and be permanently destroyed by) the volume/speed/screenshot
    notices whenever one fired inside its 8-second window. */
 .seek-osd--update {
-  top: 12%;
+  top: 8%;
+  /* Two-part pill: clickable install text + session-dismiss cross. The
+     container keeps pointer-events:none from .seek-osd (a stray click
+     must never pause the video); only the two real buttons inside act. */
+  gap: 2px;
+  padding: 3px 4px 3px 14px;
+}
+
+.seek-osd__action {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+}
+
+.seek-osd__action:hover {
+  text-decoration: underline;
+}
+
+.seek-osd__action[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.seek-osd__dismiss {
+  width: 20px;
+  height: 20px;
 }
 
 /* Narrow windows: hide the rarely-used secondary controls instead of

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { MAX_VOLUME, SPEED_STEP } from '../utils'
 import { userFacingMessage } from '../errors'
+import { t } from '../i18n'
 
 // Seek step (seconds) for ArrowLeft/ArrowRight. 10s matches VLC's default
 // arrow seek; 5s felt too short to make progress on long videos.
@@ -78,9 +79,14 @@ export function useKeyboardShortcuts(opts: {
       // after a click, and arrows must still seek/adjust the volume then --
       // our preventDefault() below also cancels the slider's native arrow
       // step, so the keypress does not move the slider AND seek at once.
+      // Don't hijack typing/native navigation in a focused form control
+      // (select, textarea, text input). Range sliders stay exempt: arrows
+      // on them must keep seeking/adjusting, and preventDefault below
+      // cancels their native step so they don't double-act.
       if (
-        e.target instanceof HTMLInputElement &&
-        e.target.type !== 'range'
+        (e.target instanceof HTMLInputElement && e.target.type !== 'range') ||
+        e.target instanceof HTMLSelectElement ||
+        e.target instanceof HTMLTextAreaElement
       ) return
       // Let Space activate a focused button natively instead of also firing
       // the play/pause shortcut (double action on a single keypress).
@@ -101,7 +107,16 @@ export function useKeyboardShortcuts(opts: {
         if (e.code === 'KeyH' || e.key === 'Escape') {
           e.preventDefault()
           opts.toggleHelp?.()
+          return
         }
+        // Keys targeting the dialog itself keep native behavior (Tab for
+        // the focus trap, Space on the close button). Everything else
+        // must NOT act on the controls BEHIND the backdrop: without
+        // preventDefault a focused range slider still moved natively
+        // under the overlay (arrows) and Space still clicked whatever
+        // held focus back there.
+        if (e.target instanceof HTMLElement && e.target.closest('.shortcuts-help')) return
+        e.preventDefault()
         return
       }
       // Shift widens the letter shortcut alphabet without extra physical keys
@@ -270,7 +285,7 @@ export function useFullscreen(onError: (msg: string) => void) {
       void win
         .setFullscreen(!fs)
         .then(() => setIsFullscreen(!fs))
-        .catch((e) => onError(userFacingMessage('Le plein écran est indisponible.', e).message))
+        .catch((e) => onError(userFacingMessage(t('errFullscreenBad'), e).message))
     })
   }, [onError])
 
@@ -279,16 +294,23 @@ export function useFullscreen(onError: (msg: string) => void) {
   // this listener the fullscreen button icon would go stale. The window
   // object exposes no onFullscreenChanged helper; the raw event works.
   useEffect(() => {
-    const unlistenPromise = getCurrentWindow().listen<boolean>(
-      'tauri://fullscreen-changed',
-      ({ payload }) => setIsFullscreen(payload),
-    )
+    // Tauri 2 emits NO fullscreen-changed event (tao only signals
+    // Resized) -- the listener this replaced was dead code the day an
+    // external toggle (F11, window-manager shortcut) appears. A resize
+    // always accompanies a fullscreen transition, so re-reading the real
+    // state on every resize keeps the icon honest.
+    const unlistenPromise = getCurrentWindow().onResized(() => {
+      void getCurrentWindow().isFullscreen().then(
+        (fs) => setIsFullscreen(fs),
+        () => {},
+      )
+    })
     // Detach via the promise rather than a `let` reassigned from the async
     // closure (react/immutability); unlisten resolves before cleanup runs
     // in practice, and passing the promise along keeps the effect
     // render-pure either way.
     return () => {
-      void unlistenPromise.then((unlisten) => unlisten())
+      void unlistenPromise.then((unlisten) => unlisten(), () => {})
     }
   }, [])
 
@@ -306,7 +328,10 @@ export function useControlsVisibility() {
     const raw = getComputedStyle(document.documentElement)
       .getPropertyValue('--controls-hide-delay')
       .trim()
-    const parsed = Number(raw)
+    // parseFloat: CSS values carry units ("2600ms") and Number("2600ms")
+    // is NaN -- the token was never truly honored, today's 2600 worked by
+    // coincidence.
+    const parsed = parseFloat(raw)
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 2600
   })()
 

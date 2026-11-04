@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { screenshotArgs, screenshotPath } from './screenshot'
+import { screenshotPath } from './screenshot'
 
 const nothingExists = async () => false
 
@@ -39,8 +39,3 @@ describe('screenshotPath', () => {
   })
 })
 
-describe('screenshotArgs', () => {
-  it('inclut le chemin, les sous-titres et pas d’OSD mpv', () => {
-    expect(screenshotArgs('/tmp/shot.png')).toEqual(['/tmp/shot.png', 'subtitles', false])
-  })
-})

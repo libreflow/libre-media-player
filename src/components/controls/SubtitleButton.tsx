@@ -30,11 +30,15 @@ export function SubtitleButton({
   closeSignal = 0,
 }: SubtitleButtonProps) {
   const [open, setOpen] = useState(false)
-  // Force-closed while a full-screen overlay (the shortcuts help) is up:
-  // the menu must not sit open UNDER its backdrop -- Escape would only
-  // reveal it back with nothing left in the layer chain to close it.
-  // Derived (not an effect) so no setState runs inside an effect.
+  // Force-closed while a full-screen overlay (the shortcuts help) is up.
+  // The signal must CONSUME the open state, not just mask it: masking
+  // alone made the menu silently REAPPEAR when the overlay closed
+  // (open never dropped). Derived ring + consuming effect.
   const shown = open && closeSignal === 0
+  useEffect(() => {
+    // eslint-disable-next-line react/set-state-in-effect -- deliberate: the signal must CONSUME 'open' (masking alone resurrects the menu when the overlay closes), and 'h' opening the overlay from the keyboard gives no DOM event to derive from.
+    if (closeSignal) setOpen(false)
+  }, [closeSignal])
   const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

@@ -87,7 +87,7 @@ export function useFileAssociation(opts: {
         if (!token.cancelled && initialPath) await openWhenReady(initialPath)
       } catch (e) {
         if (!token.cancelled) {
-          optsRef.current.onError(userFacingMessage("Impossible d'ouvrir le fichier initial.", e).message)
+          optsRef.current.onError(userFacingMessage(t('errInitialFile'), e).message)
         }
       }
     })()
