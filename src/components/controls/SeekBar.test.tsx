@@ -158,6 +158,55 @@ describe('SeekBar smoothing', () => {
     vi.useRealTimers()
   })
 
+  // Regression (audit des vagues récentes): the rAF extrapolation used to
+  // advance by WALL-CLOCK time only -- at 2x the position moves twice as
+  // fast between two mpv ticks and the bar visibly jumped back into sync
+  // every observer tick.
+  it('extrapolates at the playback speed (2x video, 30 frames ~1s)', async () => {
+    vi.useFakeTimers()
+    const rafCallbacks: FrameRequestCallback[] = []
+    vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((cb: FrameRequestCallback) => {
+        rafCallbacks.push(cb)
+        return rafCallbacks.length
+      })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
+    const performanceSpy = vi
+      .spyOn(window.performance, 'now')
+      .mockReturnValue(0)
+
+    const seekingRef = { current: false }
+    const { container } = render(
+      <SeekBar
+        timePos={10}
+        duration={100}
+        speed={2}
+        seekingRef={seekingRef}
+        onSeekChange={() => {}}
+        onSeekCommit={() => {}}
+        paused={false}
+        chapters={[]}
+        visible
+      />,
+    )
+    const input = container.querySelector('input') as HTMLInputElement
+
+    let now = 0
+    for (let i = 0; i < 30; i++) {
+      now += 16.7
+      performanceSpy.mockReturnValue(now)
+      const cb = rafCallbacks.shift()!
+      act(() => cb(now))
+    }
+    const after = Number(input.value)
+    // The same 30 frames advance ~1s (double the pace) at 2x.
+    expect(after).toBeGreaterThan(10.9)
+    expect(after).toBeLessThanOrEqual(11.1)
+
+    vi.useRealTimers()
+  })
+
   // A fresh timePos from mpv must resynchronize the displayed position
   // (the observer's value wins over the extrapolation).
   it('resyncs to a new raw timePos between frames', async () => {

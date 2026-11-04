@@ -33,7 +33,12 @@ export function ShortcutHelp({ open, onClose }: ShortcutHelpProps) {
       role="dialog"
       aria-modal="false"
       aria-label={t('helpTitle')}
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation()
+        // Clicking the dimmed backdrop closes the overlay -- the gesture
+        // every track menu already teaches (mousedown outside = close).
+        if (e.target === e.currentTarget) onClose()
+      }}
       onDoubleClick={(e) => e.stopPropagation()}
     >
       <div className="shortcuts-help__panel">
@@ -54,7 +59,15 @@ export function ShortcutHelp({ open, onClose }: ShortcutHelpProps) {
           <Row keys={['H']} labelKey="helpTitle" />
         </div>
         <div className="shortcuts-help__hint">{t('helpHint')}</div>
-        <button type="button" className="icon-btn shortcuts-help__close" aria-label={t('close')} onClick={onClose}>
+        <button
+          type="button"
+          className="icon-btn shortcuts-help__close"
+          aria-label={t('close')}
+          onClick={onClose}
+          // Focus starts inside the dialog (before, Tab wandered through
+          // the controls BEHIND the dimmed backdrop).
+          autoFocus
+        >
           <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
             <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
           </svg>

@@ -405,6 +405,9 @@
   display: flex;
   align-items: center;
   gap: 14px;
+  /* Wrap instead of overflowing the floating glass bar on narrow windows
+  (the filename flexes to nothing first, then the row needs a second line). */
+  flex-wrap: wrap;
 }
 
 .icon-btn {
@@ -727,7 +730,9 @@
 .pause-flash {
   position: absolute;
   inset: 0;
-  z-index: 12;
+  /* Above the glass panels (z 20): hidden behind the queue's blur,
+  the flash is the ONLY playback feedback with the bar hidden. */
+  z-index: 25;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -845,7 +850,19 @@ button.playlist-panel__name {
   justify-content: center;
   background: rgba(10, 10, 14, 0.5);
   cursor: default;
-  animation: seek-osd-in 0.12s ease both;
+  /* Dedicated fade keyframes: reusing seek-osd-in left its final
+     translateX(-50%) applied FOREVER ('both' fill), shifting the whole
+     inset:0 overlay half a window to the left. */
+  animation: overlay-fade-in 0.12s ease both;
+}
+
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .shortcuts-help__panel {
@@ -930,4 +947,44 @@ button.playlist-panel__name {
   position: absolute;
   top: 8px;
   right: 8px;
+}
+
+
+/* Clickable OSD variant (update prompt): .seek-osd is pointer-events:none
+   by design -- without this override the "click to install" notice was
+   unclickable, the click fell through to a pause toggle. */
+.seek-osd--clickable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* The update prompt gets its own anchor BELOW the transient OSD slot: it
+   used to share (and be permanently destroyed by) the volume/speed/screenshot
+   notices whenever one fired inside its 8-second window. */
+.seek-osd--update {
+  top: 12%;
+}
+
+/* Narrow windows: hide the rarely-used secondary controls instead of
+   shoving everything out of the glass bar (the shortcuts still work; the
+   language switch lives in the shortcuts help's absence of a UI home is
+   accepted for now). */
+@media (max-width: 680px) {
+  .lang-switch {
+    display: none;
+  }
+  .playlist-panel {
+    width: min(300px, calc(100% - 32px));
+  }
+}
+
+/* Reduced-motion users get a STATIC play/pause flash indicator: the global
+   0.01ms rule froze the animation at its invisible final keyframe (opacity
+   0 with fill both), killing the feature for them -- the JS timer still
+   removes it after 650ms. */
+@media (prefers-reduced-motion: reduce) {
+  .pause-flash svg {
+    animation: none;
+    opacity: 0.85;
+  }
 }

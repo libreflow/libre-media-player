@@ -650,3 +650,46 @@ describe('shortcuts help overlay', () => {
     expect(toggleFullscreen).not.toHaveBeenCalled()
   })
 })
+
+// Regression (audit des vagues récentes): while the help overlay is open,
+// every OTHER shortcut used to keep acting on the video behind the dimmed
+// backdrop (space pausing the film, 'c' writing a PNG, 'l' opening the
+// queue invisibly). The overlay is modal: only h/Escape act now.
+describe('help overlay gates the other shortcuts', () => {
+  it('media shortcuts are inert while the help overlay is open', () => {
+    const togglePause = vi.fn()
+    const takeScreenshot = vi.fn()
+    const togglePlaylist = vi.fn()
+    function Harness() {
+      useKeyboardShortcuts({
+        hasMedia: true,
+        volume: 100,
+        isFullscreen: false,
+        isPlaylistOpen: false,
+        isHelpOpen: true,
+        toggleHelp: () => {},
+        togglePause,
+        toggleFullscreen: () => {},
+        toggleSubtitles: () => {},
+        playNext: () => {},
+        playPrevious: () => {},
+        togglePlaylist,
+        seekBy: () => {},
+        setVolume: () => {},
+        adjustSubDelay: () => {},
+        adjustAudioDelay: () => {},
+        takeScreenshot,
+        adjustSpeed: () => {},
+      })
+      return null
+    }
+    render(<Harness />)
+    act(() => press(' ', 'Space'))
+    act(() => press('c', 'KeyC'))
+    act(() => press('l', 'KeyL'))
+    act(() => press('>', 'Period'))
+    expect(togglePause).not.toHaveBeenCalled()
+    expect(takeScreenshot).not.toHaveBeenCalled()
+    expect(togglePlaylist).not.toHaveBeenCalled()
+  })
+})

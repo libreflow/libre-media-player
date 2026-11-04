@@ -56,9 +56,11 @@ export async function loadSettings(): Promise<Settings> {
 }
 
 // Best-effort write -- losing settings is a minor inconvenience, never an
-// error banner.
+// error banner. IMPORTANT: a fresh object is returned so the store can never
+// skip the write on identity (mutating the object loadSettings() gave you
+// would otherwise persist NOTHING -- the store compares by reference).
 export async function saveSettings(settings: Settings): Promise<void> {
-  await store.mutate(() => settings)
+  await store.mutate(() => ({ ...settings }))
 }
 
 // Merge-style update: persists a partial change without clobbering the

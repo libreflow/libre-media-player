@@ -108,3 +108,29 @@ describe('createJsonStore.mutate', () => {
     expect(await store.read()).toEqual({ value: 'a-b' })
   })
 })
+
+// Contract documentation: mutate SKIPS the disk write when the same object
+// reference is returned. This is what makes `pruneRecentFiles` cheap (and
+// resume's periodic checkpoints write only when the data actually
+// changed) -- but it also means callers must return a FRESH object to
+// persist an in-place mutation. settings.saveSettings documents the same
+// pitfall for its whole-file save.
+describe('createJsonStore.mutate identity contract', () => {
+  it('does not write when the mutation returns the same object reference', async () => {
+    const store = makeStore()
+    await store.mutate(() => ({ value: 'first' }))
+    const { writeTextFile } = await import('@tauri-apps/plugin-fs')
+    vi.mocked(writeTextFile).mockClear()
+    // Same reference returned: no write.
+    await store.mutate((current) => current)
+    expect(writeTextFile).not.toHaveBeenCalled()
+    // In-place mutation of the cached object returned AS-IS: STILL no
+    // write -- the documented trap callers must avoid.
+    await store.mutate((current) => {
+      ;(current as { value: string }).value = 'mutated in place'
+      return current
+    })
+    expect(writeTextFile).not.toHaveBeenCalled()
+    expect(await store.read()).toEqual({ value: 'mutated in place' })
+  })
+})

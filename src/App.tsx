@@ -29,6 +29,9 @@ function App() {
   const [notice, setNotice] = useState<string | null>(null)
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const showNotice = useCallback((msg: string, ms = 2500) => {
+    // The notice and the seek OSD share the same on-screen slot -- clear
+    // the other so rapid keypresses never paint two overlapping pills.
+    setSeekOsd(null)
     setNotice(msg)
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current)
     noticeTimerRef.current = setTimeout(() => setNotice(null), ms)
@@ -157,6 +160,12 @@ function App() {
     // the OSD never feels unresponsive. The absolute position follows on
     // the next observer tick (player.timePos changes re-render below).
     setSeekOsd({ delta, at: player.timePos != null ? player.timePos + delta : null })
+    // Same slot as the notices (see showNotice): the most recent wins.
+    setNotice(null)
+    if (noticeTimerRef.current) {
+      clearTimeout(noticeTimerRef.current)
+      noticeTimerRef.current = null
+    }
     if (seekOsdTimerRef.current) clearTimeout(seekOsdTimerRef.current)
     seekOsdTimerRef.current = setTimeout(() => setSeekOsd(null), SEEK_OSD_MS)
   }, [player.timePos])
@@ -191,16 +200,20 @@ function App() {
   const togglePauseWithFeedback = useCallback(() => {
     // The icon shows the state the player is switching TO: currently
     // paused -> a play triangle (resuming), currently playing -> bars.
-    flashPause(player.paused ? 'play' : 'pause')
+    // pausedRef is the OPTIMISTIC mirror togglePause flips immediately --
+    // the React state only follows the mpv observer, so a rapid double
+    // Space flipped the flash icon on a stale value.
+    flashPause(player.pausedRef.current ? 'play' : 'pause')
     player.togglePause()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: paused/togglePause are the only player fields read; depending on the whole object would churn this (and every consumer) on every mpv state tick
-  }, [player.paused, player.togglePause, flashPause])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: pausedRef/togglePause are the only player fields read; depending on the whole object would churn this (and every consumer) on every mpv state tick
+  }, [player.pausedRef, player.togglePause, flashPause])
 
   // Auto-update (roadmap #63): a found update shows a clickable notice.
   const { update, install } = useUpdateCheck(showNotice, onError)
-  useEffect(() => {
-    if (update != null) showNotice(t('updateAvailable', { version: update.version }), 8000)
-  }, [update, showNotice])
+  // The update prompt renders SEPARATELY from the transient notices: both
+  // shared the single `notice` slot before, so adjusting the volume or the
+  // speed during the prompt's lifetime permanently DESTROYED the install
+  // affordance for the rest of the session (no effect ever re-ran it).
 
   // Screenshot capture (roadmap #60): fire-and-forget with an OSD notice
   // carrying the destination path.
@@ -318,7 +331,7 @@ function App() {
         </div>
       )}
       {pauseFlash && (
-        <div className="pause-flash" key={pauseFlash + String(Date.now())} aria-hidden="true">
+        <div className="pause-flash" key={pauseFlash} aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="currentColor">
             {pauseFlash === 'play'
               ? <path d="M8 5v14l11-7z" />
@@ -327,13 +340,20 @@ function App() {
         </div>
       )}
       <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
-      {notice && (
+      {update != null && (
         <div
-          className="seek-osd"
+          className="seek-osd seek-osd--update seek-osd--clickable"
           role="status"
-          onClick={update != null ? (e) => { e.stopPropagation(); void install() } : (e) => e.stopPropagation()}
-          onDoubleClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            void install()
+          }}
         >
+          {t('updateAvailable', { version: update.version })}
+        </div>
+      )}
+      {notice && (
+        <div className="seek-osd" role="status">
           {notice}
         </div>
       )}
@@ -456,6 +476,7 @@ function App() {
         chapters={chapters}
         locale={locale}
         onSwitchLocale={switchLocale}
+        menusCloseSignal={helpOpen ? 1 : 0}
         speed={player.speed}
         onResetSpeed={() => {
           // One click back to 1×: adjustSpeed takes a delta, so the exact

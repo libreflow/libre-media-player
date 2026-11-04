@@ -32,6 +32,10 @@ export interface PlayerState {
   error: string | null
   filename: string | null
   paused: boolean
+  /** Optimistic mirror of mpv's pause (flip is immediate; the React state
+   * only follows the property observer). Read at interaction time when the
+   * CURRENT value matters more than the last committed render. */
+  pausedRef: React.MutableRefObject<boolean>
   timePos: number | null
   duration: number | null
   volume: number
@@ -177,6 +181,13 @@ export function usePlayer(
           hwdec: 'auto-safe',
           'keep-open': 'always',
           'force-window': 'yes',
+          // mpv KEEPS runtime option changes from one file to the next
+          // ("Normally, mpv will try to keep all settings when playing the
+          // next file") -- the React-side resets in loadFileInner assumed
+          // the opposite, desyncing the mirror state when a file was
+          // opened at a non-default speed/delay. Declaring the resets
+          // here makes mpv itself restore the defaults on every loadfile.
+          'reset-on-next-file': 'speed,audio-delay,sub-delay',
         },
         observedProperties: OBSERVED_PROPERTIES,
       })
@@ -488,6 +499,11 @@ export function usePlayer(
     setDuration(null)
     setTimePos(null)
     setFilename(null)
+    // Reset the mirrored speed too: 'stop' keeps mpv's runtime speed (the
+    // actual value is restored by reset-on-next-file at the next loadfile)
+    // and the home screen would otherwise show a stale ×0.5 chip.
+    speedRef.current = 1
+    setSpeedState(1)
     // Invalidate the current load generation: mpv's stop discards tracks
     // added via sub-add, so a later reopen of the SAME path must re-run the
     // sidecar load (a bare path-based guard used to skip it).
@@ -534,6 +550,11 @@ export function usePlayer(
     error,
     filename,
     paused,
+    // Optimistic mirror (togglePause flips it immediately; the React state
+    // only follows the mpv observer). Callers needing the CURRENT pause
+    // state at interaction time (the App pause flash) read this instead of
+    // the possibly-stale state value.
+    pausedRef,
     timePos,
     duration,
     volume,

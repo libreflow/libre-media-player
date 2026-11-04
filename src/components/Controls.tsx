@@ -53,6 +53,10 @@ interface ControlsProps {
   onResetSpeed: () => void
   /** Opens the shortcuts help overlay. */
   onOpenShortcuts: () => void
+  /** Toggles to a non-zero value when a full-screen overlay opens (help):
+   *  the track menus read it to close -- they otherwise stayed open UNDER
+   *  the help overlay, and Escape would only reveal them back. */
+  menusCloseSignal: number
 }
 
 export function Controls(props: ControlsProps) {
@@ -63,13 +67,14 @@ export function Controls(props: ControlsProps) {
     subTracks, audioTracks, onSelectSubtrack, onDisableSubtitles, onSelectAudioTrack,
     togglePause, toggleFullscreen, setVolume,
     onSeekChange, onSeekCommit, seekingRef, timePos, duration, visible, chapters, locale, onSwitchLocale,
-    speed, onResetSpeed, onOpenShortcuts,
+    speed, onResetSpeed, onOpenShortcuts, menusCloseSignal,
   } = props
   return (
     <div className="controls" role="toolbar" aria-label={t('play')} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
       <SeekBar
         timePos={timePos}
         duration={duration}
+        speed={speed}
         seekingRef={seekingRef}
         onSeekChange={onSeekChange}
         onSeekCommit={onSeekCommit}
@@ -97,6 +102,7 @@ export function Controls(props: ControlsProps) {
           tracks={audioTracks}
           onSelect={onSelectAudioTrack}
           disabledSelected={false}
+          closeSignal={menusCloseSignal}
         />
         <VolumeControl volume={volume} setVolume={setVolume} />
         <SubtitleButton
@@ -107,6 +113,7 @@ export function Controls(props: ControlsProps) {
           onToggleSubtitles={onToggleSubtitles}
           onSelectSubtrack={onSelectSubtrack}
           onDisableSubtitles={onDisableSubtitles}
+          closeSignal={menusCloseSignal}
         />
         <span className="filename">{filename ?? ''}</span>
         {speed !== 1 && (
@@ -114,8 +121,10 @@ export function Controls(props: ControlsProps) {
             type="button"
             className="speed-chip"
             onClick={onResetSpeed}
-            title={t('playbackSpeed', { value: '1' })}
-            aria-label={t('playbackSpeed', { value: '1' })}
+            // Announce the ACTION (back to normal speed), not a hardcoded
+            // "x1" that told screen-reader users nothing about the reset.
+            title={t('resetSpeed')}
+            aria-label={t('resetSpeed')}
           >
             ×{String(speed).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')}
           </button>

@@ -93,6 +93,17 @@ export function useKeyboardShortcuts(opts: {
       // matching is layout-independent by construction. Ignore chords so
       // an OS/extension modifier shortcut is never hijacked.
       if (e.ctrlKey || e.altKey || e.metaKey) return
+      // The help overlay is MODAL: while it is open every other shortcut
+      // would act on the video BEHIND the dimmed backdrop (space pausing
+      // the film, 'c' writing a PNG, 'l' opening the queue invisibly) --
+      // gate everything except closing/toggling the overlay itself.
+      if (opts.isHelpOpen) {
+        if (e.code === 'KeyH' || e.key === 'Escape') {
+          e.preventDefault()
+          opts.toggleHelp?.()
+        }
+        return
+      }
       // Shift widens the letter shortcut alphabet without extra physical keys
       // (e.g. z = subtitles earlier, Z = subtitles later); physical-key
       // matching below keeps both layout-independent.
