@@ -14,6 +14,7 @@ import { screenshotPath } from '../screenshot'
 import { exists } from '@tauri-apps/plugin-fs'
 import { userFacingMessage } from '../errors'
 import { useResumePosition } from './useResumePosition'
+import { nextPlaybackSpeed } from '../utils'
 
 const OBSERVED_PROPERTIES = [
   ['pause', 'flag'],
@@ -21,6 +22,9 @@ const OBSERVED_PROPERTIES = [
   ['duration', 'double', 'none'],
   ['filename', 'string', 'none'],
   ['volume', 'int64'],
+  // speed stays a plain double (never none: mpv defaults to 1, even with
+  // no file loaded), so the observer callback's value needs no null-case.
+  ['speed', 'double'],
 ] as const satisfies MpvObservableProperty[]
 
 export interface PlayerState {
@@ -53,6 +57,11 @@ export function usePlayer(
   // mpv's sub-delay property (seconds). Positive delays subtitles.
   adjustSubDelay: (delta: number) => void
   subDelay: number
+  // mpv's playback speed property (1 = normal). Speed is a per-file
+  // diagnostic like A/V delay, NOT a preference: mpv resets it on
+  // loadfile and so does the mirrored React state.
+  adjustSpeed: (delta: number) => number
+  speed: number
   // Captures the displayed frame (subtitles included) to a PNG next to
   // the video (roadmap #60). Returns the destination path so the caller
   // can show a confirmation OSD.
@@ -78,6 +87,8 @@ export function usePlayer(
   const [volume, setVolumeState] = useState(100)
   const [audioDelay, setAudioDelayState] = useState(0)
   const [subDelay, setSubDelayState] = useState(0)
+  const [speed, setSpeedState] = useState(1)
+  const speedRef = useRef(1)
   const seekingRef = useRef(false)
   const readyRef = useRef(false)
   const pausedRef = useRef(true)
@@ -195,6 +206,10 @@ export function usePlayer(
           break
         case 'volume':
           setVolumeState(event.data)
+          break
+        case 'speed':
+          speedRef.current = event.data
+          setSpeedState(event.data)
           break
       }
     })
@@ -339,9 +354,12 @@ export function usePlayer(
       setTimePos(null)
       // A/V and subtitle delay compensation are per-file diagnostics, not a
       // preference: mpv resets them on loadfile, so mirroring that reset in
-      // React state keeps the UI honest (roadmap #55/#59).
+      // React state keeps the UI honest (roadmap #55/#59). Playback speed
+      // is reset the same way (mpv restores speed=1 on loadfile).
       setAudioDelayState(0)
       setSubDelayState(0)
+      speedRef.current = 1
+      setSpeedState(1)
       // mpv starts playback automatically on loadfile; read the REAL state
       // back instead of assuming one, since observeProperties only fires on
       // CHANGE and never emits if our guess already matched reality.
@@ -433,6 +451,18 @@ export function usePlayer(
     void command('add', ['sub-delay', delta]).catch(() => {})
   }, [])
 
+  // Playback speed (< / > shortcuts): mpv's `speed` property is the source
+  // of truth, mirrored in React state for the OSD. The clamped next value
+  // is returned so the caller can display it without awaiting the property
+  // observer round-trip.
+  const adjustSpeed = useCallback((delta: number): number => {
+    const next = nextPlaybackSpeed(speedRef.current, delta)
+    speedRef.current = next
+    setSpeedState(next)
+    void setProperty('speed', next).catch(() => {})
+    return next
+  }, [])
+
   const togglePause = useCallback(() => {
     const next = !pausedRef.current
     pausedRef.current = next
@@ -519,6 +549,8 @@ export function usePlayer(
     audioDelay,
     adjustSubDelay,
     subDelay,
+    adjustSpeed,
+    speed,
     stopPlayback,
     takeScreenshot,
     retryInit,

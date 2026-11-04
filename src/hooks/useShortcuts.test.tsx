@@ -57,6 +57,7 @@ function Harness({ onSnapshot }: { onSnapshot: (s: { panelOpen: boolean }) => vo
     adjustSubDelay: () => {},
     adjustAudioDelay: () => {},
     takeScreenshot: () => {},
+    adjustSpeed: () => {},
   })
 
   onSnapshot({ panelOpen })
@@ -110,6 +111,7 @@ describe('useKeyboardShortcuts', () => {
         adjustSubDelay: () => {},
         adjustAudioDelay: () => {},
         takeScreenshot: () => {},
+        adjustSpeed: () => {},
       })
       return null
     }
@@ -137,6 +139,7 @@ describe('useKeyboardShortcuts', () => {
         adjustSubDelay: () => {},
         adjustAudioDelay: () => {},
         takeScreenshot: () => {},
+        adjustSpeed: () => {},
       })
       return null
     }
@@ -168,6 +171,7 @@ describe('useKeyboardShortcuts', () => {
         adjustSubDelay: () => {},
         adjustAudioDelay: () => {},
         takeScreenshot: () => {},
+        adjustSpeed: () => {},
       })
       return null
     }
@@ -196,6 +200,7 @@ describe('useKeyboardShortcuts', () => {
         adjustSubDelay: () => {},
         adjustAudioDelay: () => {},
         takeScreenshot: () => {},
+        adjustSpeed: () => {},
       })
       return null
     }
@@ -225,6 +230,7 @@ describe('useKeyboardShortcuts', () => {
         adjustSubDelay: () => {},
         adjustAudioDelay: () => {},
         takeScreenshot: () => {},
+        adjustSpeed: () => {},
       })
       return null
     }
@@ -258,6 +264,7 @@ describe('volume shortcuts respect hasMedia', () => {
         adjustSubDelay: () => {},
         adjustAudioDelay: () => {},
         takeScreenshot: () => {},
+        adjustSpeed: () => {},
       })
       return null
     }
@@ -286,6 +293,7 @@ describe('volume shortcuts respect hasMedia', () => {
         adjustSubDelay: () => {},
         adjustAudioDelay: () => {},
         takeScreenshot: () => {},
+        adjustSpeed: () => {},
       })
       return null
     }
@@ -315,6 +323,7 @@ describe('volume shortcuts respect hasMedia', () => {
         adjustSubDelay: () => {},
         adjustAudioDelay: () => {},
         takeScreenshot: () => {},
+        adjustSpeed: () => {},
       })
       return null
     }
@@ -347,6 +356,7 @@ describe('arrow-key seeking', () => {
         adjustSubDelay: () => {},
         adjustAudioDelay: () => {},
         takeScreenshot: () => {},
+        adjustSpeed: () => {},
       })
       return null
     }
@@ -377,6 +387,7 @@ describe('arrow-key seeking', () => {
         adjustSubDelay: () => {},
         adjustAudioDelay: () => {},
         takeScreenshot: () => {},
+        adjustSpeed: () => {},
       })
       return null
     }
@@ -411,6 +422,7 @@ describe('arrow-key seeking', () => {
         adjustSubDelay: () => {},
         adjustAudioDelay: () => {},
         takeScreenshot: () => {},
+        adjustSpeed: () => {},
       })
       return (
         <div>
@@ -462,6 +474,7 @@ describe('arrow-key seeking', () => {
         adjustSubDelay: () => {},
         adjustAudioDelay: () => {},
         takeScreenshot: () => {},
+        adjustSpeed: () => {},
       })
       return <input type="range" data-testid="seek" />
     }
@@ -497,6 +510,7 @@ describe('arrow-key seeking', () => {
         adjustSubDelay: () => {},
         adjustAudioDelay,
         takeScreenshot: () => {},
+        adjustSpeed: () => {},
       })
       return null
     }
@@ -510,5 +524,58 @@ describe('arrow-key seeking', () => {
     // The classic e.key form still works too.
     act(() => press('[', 'BracketLeft'))
     expect(adjustAudioDelay).toHaveBeenCalledTimes(3)
+  })
+})
+
+// Playback speed shortcuts (roadmap follow-up): mpv's own < / > speed
+// bindings are SHIFTED characters on most layouts (QWERTY: Shift+Comma and
+// Shift+Period) and plain dead/reserved keys elsewhere (AZERTY: the
+// unshifted Period key produces ':'). Like the audio-delay brackets, the
+// match must be on the PHYSICAL key to stay layout-independent.
+describe('playback speed shortcuts', () => {
+  function SpeedHarness({ adjustSpeed, hasMedia }: { adjustSpeed: (d: number) => void; hasMedia: boolean }) {
+    useKeyboardShortcuts({
+      hasMedia,
+      volume: 100,
+      isFullscreen: false,
+      isPlaylistOpen: false,
+      togglePause: () => {},
+      toggleFullscreen: () => {},
+      toggleSubtitles: () => {},
+      playNext: () => {},
+      playPrevious: () => {},
+      togglePlaylist: () => {},
+      seekBy: () => {},
+      setVolume: () => {},
+      adjustSubDelay: () => {},
+      adjustAudioDelay: () => {},
+      takeScreenshot: () => {},
+      adjustSpeed,
+    })
+    return null
+  }
+
+  it('matches the speed keys on the PHYSICAL key, not e.key (AZERTY)', () => {
+    const adjustSpeed = vi.fn()
+    render(<SpeedHarness adjustSpeed={adjustSpeed} hasMedia={true} />)
+    // AZERTY: unshifted Period produces ':' and unshifted Comma produces
+    // ';'/',' -- matching e.key ('<' / '>') would never fire.
+    act(() => press(':', 'Period'))
+    expect(adjustSpeed).toHaveBeenCalledWith(0.25)
+    act(() => press(';', 'Comma'))
+    expect(adjustSpeed).toHaveBeenCalledWith(-0.25)
+    // The classic shifted e.key form still works too (QWERTY).
+    act(() => press('>', 'Period'))
+    expect(adjustSpeed).toHaveBeenCalledTimes(3)
+    act(() => press('<', 'Comma'))
+    expect(adjustSpeed).toHaveBeenCalledTimes(4)
+  })
+
+  it('does not change the speed when hasMedia is false', () => {
+    const adjustSpeed = vi.fn()
+    render(<SpeedHarness adjustSpeed={adjustSpeed} hasMedia={false} />)
+    act(() => press('>', 'Period'))
+    act(() => press('<', 'Comma'))
+    expect(adjustSpeed).not.toHaveBeenCalled()
   })
 })

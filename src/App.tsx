@@ -195,6 +195,13 @@ function App() {
     setVolume: player.setVolume,
     adjustSubDelay: player.adjustSubDelay,
     adjustAudioDelay: player.adjustAudioDelay,
+    adjustSpeed: (delta) => {
+      // Display the value adjustSpeed returns (clamped + rounded) instead
+      // of awaiting the property observer round-trip, so the OSD never
+      // lags behind the keypress.
+      const next = player.adjustSpeed(delta)
+      showNotice(t('playbackSpeed', { value: String(next).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '') }))
+    },
     takeScreenshot,
   })
 

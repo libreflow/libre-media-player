@@ -72,6 +72,8 @@ const fr = {
   // Screenshot (#60)
   screenshotTaken: 'Capture enregistrée : {path}',
   screenshotFailed: 'Capture impossible : {err}',
+  // Playback speed (follow-up to the roadmap)
+  playbackSpeed: 'Vitesse : ×{value}',
   // Updater (#63)
   updateAvailable: 'Version {version} disponible — cliquez pour installer',
   updateReady: 'Mise à jour prête. Redémarrer pour appliquer ?',
@@ -138,6 +140,7 @@ const en: Record<MessageKey, string> = {
   errCorrupt: 'Playback stopped on an error — the file may be corrupt or incomplete.',
   screenshotTaken: 'Screenshot saved: {path}',
   screenshotFailed: 'Screenshot failed: {err}',
+  playbackSpeed: 'Playback speed: ×{value}',
   updateAvailable: 'Version {version} available — click to install',
   updateReady: 'Update ready. Restart to apply?',
   updateCheckFailed: 'Update check failed: {err}',
