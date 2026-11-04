@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 // Cross-language consistency checks that no per-language linter can catch:
 // 1. The video extension list is triplicated (TS utils, Rust lib.rs, NSIS
@@ -13,7 +14,7 @@ import { readFileSync } from 'node:fs'
 //    version -- nothing else keeps the three in sync.
 // Exits non-zero with a clear message on any mismatch.
 
-const ROOT = new URL('..', import.meta.url).pathname
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const read = (p) => readFileSync(`${ROOT}${p}`, 'utf8')
 
 function fail(msg) {

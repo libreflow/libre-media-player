@@ -238,14 +238,17 @@ export function useFullscreen(onError: (msg: string) => void) {
   // this listener the fullscreen button icon would go stale. The window
   // object exposes no onFullscreenChanged helper; the raw event works.
   useEffect(() => {
-    let unlisten: (() => void) | undefined
-    ;(async () => {
-      unlisten = await getCurrentWindow().listen<boolean>(
-        'tauri://fullscreen-changed',
-        ({ payload }) => setIsFullscreen(payload),
-      )
-    })()
-    return () => unlisten?.()
+    const unlistenPromise = getCurrentWindow().listen<boolean>(
+      'tauri://fullscreen-changed',
+      ({ payload }) => setIsFullscreen(payload),
+    )
+    // Detach via the promise rather than a `let` reassigned from the async
+    // closure (react/immutability); unlisten resolves before cleanup runs
+    // in practice, and passing the promise along keeps the effect
+    // render-pure either way.
+    return () => {
+      void unlistenPromise.then((unlisten) => unlisten())
+    }
   }, [])
 
   return { isFullscreen, toggleFullscreen }

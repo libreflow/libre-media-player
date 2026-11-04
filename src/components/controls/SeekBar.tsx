@@ -36,6 +36,11 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
   const displayPosRef = useRef<number | null>(timePos)
   const pausedRef = useRef(paused)
   const durationRef = useRef<number | null>(duration)
+  // Pending rAF id and the timestamp of the last handled frame (rAF loop
+  // state) -- refs like the other rAF inputs, because rAF-loop locals can't
+  // be reassigned from the frame callback (react/immutability).
+  const rafRef = useRef(0)
+  const rafLastRef = useRef(0)
   // Mirrored into refs for the rAF callback, but only inside an effect:
   // writing refs during render is a side effect the React Compiler lint
   // (rightly) flags; the rAF loop only reads them after commit anyway.
@@ -61,24 +66,23 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
   // entire duration of every video.
   useEffect(() => {
     if (!visible || paused || timePos == null || duration == null || duration <= 0) return
-    let raf = 0
-    let last = performance.now()
+    rafLastRef.current = performance.now()
     const tick = (now: number) => {
       if (!seekingRef.current && !pausedRef.current && timePosRef.current != null) {
         const dur = durationRef.current
         if (dur != null && dur > 0) {
-          const elapsed = (now - last) / 1000
+          const elapsed = (now - rafLastRef.current) / 1000
           const base = displayPosRef.current ?? timePosRef.current
           const next = Math.min(base + elapsed, dur)
           displayPosRef.current = next
           setDisplayPos(next)
         }
       }
-      last = now
-      raf = requestAnimationFrame(tick)
+      rafLastRef.current = now
+      rafRef.current = requestAnimationFrame(tick)
     }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
+    rafRef.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafRef.current)
   }, [visible, paused, timePos, duration, seekingRef])
 
   const fillPercent = duration != null && duration > 0
