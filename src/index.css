@@ -15,6 +15,14 @@
   --color-error-bg: rgba(220, 60, 60, 0.15);
   --color-error-border: rgba(220, 60, 60, 0.4);
   --color-track: rgba(255, 255, 255, 0.22);
+  /* Hover/border/chapter shades used across App.css -- centralized here so
+     every overlay speaks the same language (and a future light theme only
+     redefines this block). */
+  --color-hover: rgba(255, 255, 255, 0.1);
+  --color-hover-soft: rgba(255, 255, 255, 0.08);
+  --color-border-soft: rgba(255, 255, 255, 0.12);
+  --color-chapter: #b9a8ff;
+  --color-chapter-marker: rgba(255, 255, 255, 0.55);
 
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -23,7 +31,12 @@
 
   --transition-fast: 0.15s ease;
 
+  /* Read by useControlsVisibility (getComputedStyle) so the CSS value is
+     the single source of truth for how long the controls linger. */
   --controls-hide-delay: 2600ms;
+  /* Vertical space reserved so the queue panel never sits under the
+     control bar (keep in sync with .controls' height). */
+  --controls-reserve: 90px;
 }
 
 html,
@@ -48,6 +61,13 @@ body {
 button {
   font: inherit;
   cursor: pointer;
+}
+
+/* Keyboard navigation (roadmap #56) needs a visible ring; hover styles
+   alone leave focus invisible. */
+:where(button, input, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {

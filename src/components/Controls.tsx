@@ -46,6 +46,13 @@ interface ControlsProps {
   locale: Locale
   /** Switches the UI language (roadmap #64) and persists it. */
   onSwitchLocale: (locale: Locale) => void
+  /** Current playback speed (mpv mirror). When != 1 a chip shows it -- the
+   * < / > OSD disappears and the user would otherwise not remember it. */
+  speed: number
+  /** Resets the speed chip back to 1 (one click instead of N keypresses). */
+  onResetSpeed: () => void
+  /** Opens the shortcuts help overlay. */
+  onOpenShortcuts: () => void
 }
 
 export function Controls(props: ControlsProps) {
@@ -56,6 +63,7 @@ export function Controls(props: ControlsProps) {
     subTracks, audioTracks, onSelectSubtrack, onDisableSubtitles, onSelectAudioTrack,
     togglePause, toggleFullscreen, setVolume,
     onSeekChange, onSeekCommit, seekingRef, timePos, duration, visible, chapters, locale, onSwitchLocale,
+    speed, onResetSpeed, onOpenShortcuts,
   } = props
   return (
     <div className="controls" role="toolbar" aria-label={t('play')} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
@@ -70,7 +78,7 @@ export function Controls(props: ControlsProps) {
         chapters={chapters}
       />
       <div className="bottom-row">
-        <button type="button" className="icon-btn" onClick={togglePause} aria-label={paused ? t('play') : t('pause')} title={paused ? `${t('play')} (Espace)` : `${t('pause')} (Espace)`}>
+        <button type="button" className="icon-btn" onClick={togglePause} aria-label={paused ? t('play') : t('pause')} title={paused ? `${t('play')} (${t('kbdSpace')})` : `${t('pause')} (${t('kbdSpace')})`}>
           {paused ? (
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
           ) : (
@@ -101,6 +109,17 @@ export function Controls(props: ControlsProps) {
           onDisableSubtitles={onDisableSubtitles}
         />
         <span className="filename">{filename ?? ''}</span>
+        {speed !== 1 && (
+          <button
+            type="button"
+            className="speed-chip"
+            onClick={onResetSpeed}
+            title={t('playbackSpeed', { value: '1' })}
+            aria-label={t('playbackSpeed', { value: '1' })}
+          >
+            ×{String(speed).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')}
+          </button>
+        )}
         <label className="lang-switch">
           <span className="sr-only">{t('language')}</span>
           <select
@@ -140,6 +159,17 @@ export function Controls(props: ControlsProps) {
         >
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.44.17-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.25.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={onOpenShortcuts}
+          aria-label={t('helpTitle')}
+          title={`${t('helpTitle')} (h)`}
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm.9 15.6h-1.9v-1.9h1.9v1.9zm1.7-6.8l-.9.9c-.7.7-.8 1-.8 2.1h-1.8v-.4c0-.9.1-1.4.8-2.1l1-1c.4-.4.6-.8.6-1.3 0-.9-.7-1.5-1.6-1.5s-1.6.6-1.7 1.6H8.4c.1-1.9 1.5-3.1 3.5-3.1s3.3 1.2 3.3 2.9c0 1-.4 1.6-1.1 2.3z" />
           </svg>
         </button>
       </div>

@@ -579,3 +579,74 @@ describe('playback speed shortcuts', () => {
     expect(adjustSpeed).not.toHaveBeenCalled()
   })
 })
+
+// Shortcuts help overlay (UI-audit follow-up): 'h' toggles it from anywhere
+// (home screen included -- knowing the shortcuts matters before playing),
+// and Escape closes the topmost layer first: help, then queue, then
+// fullscreen.
+describe('shortcuts help overlay', () => {
+  it('h physical key toggles the help overlay even without media', () => {
+    const onHelp = vi.fn()
+    function Harness() {
+      useKeyboardShortcuts({
+        hasMedia: false,
+        volume: 100,
+        isFullscreen: false,
+        isPlaylistOpen: false,
+        toggleHelp: onHelp,
+        togglePause: () => {},
+        toggleFullscreen: () => {},
+        toggleSubtitles: () => {},
+        playNext: () => {},
+        playPrevious: () => {},
+        togglePlaylist: () => {},
+        seekBy: () => {},
+        setVolume: () => {},
+        adjustSubDelay: () => {},
+        adjustAudioDelay: () => {},
+        takeScreenshot: () => {},
+        adjustSpeed: () => {},
+      })
+      return null
+    }
+    render(<Harness />)
+    // AZERTY: unshifted KeyH produces a dead/other character.
+    act(() => press('o', 'KeyH'))
+    expect(onHelp).toHaveBeenCalledTimes(1)
+  })
+
+  it('Escape closes the help overlay before the queue panel or fullscreen', () => {
+    const toggleHelp = vi.fn()
+    const togglePlaylist = vi.fn()
+    const toggleFullscreen = vi.fn()
+    function Harness() {
+      useKeyboardShortcuts({
+        hasMedia: true,
+        volume: 100,
+        isFullscreen: true,
+        isPlaylistOpen: true,
+        isHelpOpen: true,
+        toggleHelp,
+        togglePause: () => {},
+        toggleFullscreen,
+        toggleSubtitles: () => {},
+        playNext: () => {},
+        playPrevious: () => {},
+        togglePlaylist,
+        seekBy: () => {},
+        setVolume: () => {},
+        adjustSubDelay: () => {},
+        adjustAudioDelay: () => {},
+        takeScreenshot: () => {},
+        adjustSpeed: () => {},
+      })
+      return null
+    }
+    render(<Harness />)
+    act(() => press('Escape'))
+    // Help was the topmost layer: only it received the close.
+    expect(toggleHelp).toHaveBeenCalledTimes(1)
+    expect(togglePlaylist).not.toHaveBeenCalled()
+    expect(toggleFullscreen).not.toHaveBeenCalled()
+  })
+})

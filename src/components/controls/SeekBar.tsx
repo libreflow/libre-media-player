@@ -152,7 +152,16 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
           />
         ))}
         {hover && (
-          <span className="seek-hover" style={{ left: duration != null && duration > 0 ? `${(hover.pos / duration) * 100}%` : undefined }}>
+          <span
+            className="seek-hover"
+            style={{
+              // Clamp so the translateX(-50%)-centered tooltip never
+              // sticks out of the track at the very edges.
+              left: duration != null
+                ? `${Math.min(98, Math.max(2, (hover.pos / duration) * 100))}%`
+                : undefined,
+            }}
+          >
             <span className="seek-hover__time">{formatTime(hover.pos)}</span>
             {hover.chapter && <span className="seek-hover__chapter">{hover.chapter.title}</span>}
           </span>
