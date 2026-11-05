@@ -61,7 +61,25 @@ export function PlaylistPanel({ open, queue, currentIndex, shuffle, repeat, onTo
             className={`playlist-panel__item${i === currentIndex ? ' is-current' : ''}`}
             onClick={() => onPlay(i)}
           >
-            <span className="playlist-panel__name" title={item.path}>{item.name}</span>
+            {i === currentIndex && (
+              // Animated "now playing" bars -- the current row is
+              // identifiable without relying on the accent color alone
+              // (and prefers-reduced-motion freezes the animation).
+              <span className="playlist-panel__playing" aria-hidden="true">
+                <span /><span /><span />
+              </span>
+            )}
+            <button
+              type="button"
+              className="playlist-panel__name"
+              title={item.path}
+              onClick={(e) => {
+                e.stopPropagation()
+                onPlay(i)
+              }}
+            >
+              {item.name}
+            </button>
             <button
               type="button"
               className="icon-btn"

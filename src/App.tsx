@@ -15,6 +15,7 @@ import { t } from './i18n'
 import { readChapters, type Chapter } from './chapters'
 import { Controls } from './components/Controls'
 import { PlaylistPanel } from './components/PlaylistPanel'
+import { ShortcutHelp } from './components/ShortcutHelp'
 import './App.css'
 
 // How long the seek OSD stays on screen after an arrow-key seek.
@@ -166,6 +167,35 @@ function App() {
     if (seekOsdTimerRef.current) clearTimeout(seekOsdTimerRef.current)
   }, [])
 
+  // Shortcuts help overlay ('h' or the ? button). Escape closes it first
+  // (topmost-layer priority in useKeyboardShortcuts).
+  const [helpOpen, setHelpOpen] = useState(false)
+  const toggleHelp = useCallback(() => setHelpOpen((v) => !v), [])
+
+  // Central play/pause flash (VLC/YouTube style): with the controls
+  // hidden, Space or a click on the video gave NO feedback at all until
+  // the next observer tick changed something. The icon shows the state
+  // the player is switching TO, fades out on its own.
+  const [pauseFlash, setPauseFlash] = useState<'play' | 'pause' | null>(null)
+  const pauseFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flashPause = useCallback((next: 'play' | 'pause') => {
+    if (pauseFlashTimerRef.current) clearTimeout(pauseFlashTimerRef.current)
+    setPauseFlash(next)
+    pauseFlashTimerRef.current = setTimeout(() => setPauseFlash(null), 650)
+  }, [])
+  useEffect(() => () => {
+    if (pauseFlashTimerRef.current) clearTimeout(pauseFlashTimerRef.current)
+  }, [])
+  // Single toggle path with the flash feedback -- wired to the root click,
+  // the keyboard shortcut and the control bar's button alike.
+  const togglePauseWithFeedback = useCallback(() => {
+    // The icon shows the state the player is switching TO: currently
+    // paused -> a play triangle (resuming), currently playing -> bars.
+    flashPause(player.paused ? 'play' : 'pause')
+    player.togglePause()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: paused/togglePause are the only player fields read; depending on the whole object would churn this (and every consumer) on every mpv state tick
+  }, [player.paused, player.togglePause, flashPause])
+
   // Auto-update (roadmap #63): a found update shows a clickable notice.
   const { update, install } = useUpdateCheck(showNotice, onError)
   useEffect(() => {
@@ -180,19 +210,27 @@ function App() {
       .catch((e) => onError(t('screenshotFailed', { err: String(e) })))
   }, [player, showNotice, onError])
 
+  // Wrapping setVolume for the KEYBOARD path only (the slider shows its
+  // own state): with the controls hidden, ArrowUp/Down was a silent change.
+  const setVolumeWithOsd = useCallback((v: number) => {
+    player.setVolume(v)
+    showNotice(`${t('volumeLabel')} : ${v} %`)
+  }, [player, showNotice])
   useKeyboardShortcuts({
     hasMedia,
     volume: player.volume,
     isFullscreen,
     isPlaylistOpen: playlist.panelOpen,
-    togglePause: player.togglePause,
+    isHelpOpen: helpOpen,
+    toggleHelp,
+    togglePause: togglePauseWithFeedback,
     toggleFullscreen,
     toggleSubtitles: subtitles.toggle,
     playNext: playlist.playNext,
     playPrevious: playlist.playPrevious,
     togglePlaylist: () => playlist.setPanelOpen(!playlist.panelOpen),
     seekBy,
-    setVolume: player.setVolume,
+    setVolume: setVolumeWithOsd,
     adjustSubDelay: player.adjustSubDelay,
     adjustAudioDelay: player.adjustAudioDelay,
     adjustSpeed: (delta) => {
@@ -221,7 +259,7 @@ function App() {
     <div
       className={`player${hasMedia ? ' has-media' : ''}${showControls ? ' show-controls' : ''}${isDragOver ? ' drag-over' : ''}`}
       onMouseMove={onPointerActivity}
-      onClick={hasMedia ? player.togglePause : undefined}
+      onClick={hasMedia ? togglePauseWithFeedback : undefined}
       onDoubleClick={hasMedia ? toggleFullscreen : undefined}
     >
       {errorToDisplay && (
@@ -279,6 +317,16 @@ function App() {
           {t('dropOverlay')}
         </div>
       )}
+      {pauseFlash && (
+        <div className="pause-flash" key={pauseFlash + String(Date.now())} aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            {pauseFlash === 'play'
+              ? <path d="M8 5v14l11-7z" />
+              : <path d="M6 5h4v14H6zM14 5h4v14h-4z" />}
+          </svg>
+        </div>
+      )}
+      <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
       {notice && (
         <div
           className="seek-osd"
@@ -408,6 +456,13 @@ function App() {
         chapters={chapters}
         locale={locale}
         onSwitchLocale={switchLocale}
+        speed={player.speed}
+        onResetSpeed={() => {
+          // One click back to 1×: adjustSpeed takes a delta, so the exact
+          // reset is "however much is needed" -- rounding makes it exact.
+          player.adjustSpeed(1 - player.speed)
+        }}
+        onOpenShortcuts={toggleHelp}
       />
     </div>
   )

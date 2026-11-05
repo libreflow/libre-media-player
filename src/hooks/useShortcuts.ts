@@ -58,6 +58,10 @@ export function useKeyboardShortcuts(opts: {
   // Screenshot capture (roadmap #60). The KeyC physical key: 's' is already
   // the subtitle toggle here and Control+S is reserved by the OS/browser.
   takeScreenshot: () => void
+  // Shortcuts help overlay: 'h' opens it, Escape closes it before touching
+  // the queue panel or fullscreen (topmost layer closes first).
+  isHelpOpen?: boolean
+  toggleHelp?: () => void
 }) {
   const optsRef = useRef(opts)
   // Keep the ref in sync inside an effect (not during render) so the
@@ -137,6 +141,12 @@ export function useKeyboardShortcuts(opts: {
             opts.takeScreenshot()
           }
           break
+        case 'h':
+          e.preventDefault()
+          // Available with or without a video -- knowing the shortcuts is
+          // exactly as useful on the drop zone.
+          opts.toggleHelp?.()
+          break
         case 'n':
           if (opts.hasMedia) {
             e.preventDefault()
@@ -159,8 +169,10 @@ export function useKeyboardShortcuts(opts: {
           if (opts.hasMedia) opts.togglePlaylist()
           break
         case 'Escape':
-          // Close the topmost layer first: the queue panel, then fullscreen.
-          if (opts.isPlaylistOpen) opts.togglePlaylist()
+          // Close the topmost layer first: the help overlay, then the
+          // queue panel, then fullscreen.
+          if (opts.isHelpOpen) opts.toggleHelp?.()
+          else if (opts.isPlaylistOpen) opts.togglePlaylist()
           else if (opts.isFullscreen) opts.toggleFullscreen()
           break
         case 'ArrowRight':
@@ -276,10 +288,21 @@ export function useControlsVisibility() {
   const [showControls, setShowControls] = useState(true)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // --controls-hide-delay (index.css) is the single source of truth for
+  // how long the controls linger; jsdom (tests) returns '' and falls back
+  // to the 2600 that CSS documents anyway.
+  const hideDelayMs = (() => {
+    const raw = getComputedStyle(document.documentElement)
+      .getPropertyValue('--controls-hide-delay')
+      .trim()
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 2600
+  })()
+
   const scheduleHideControls = useCallback(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
-    hideTimerRef.current = setTimeout(() => setShowControls(false), 2600)
-  }, [])
+    hideTimerRef.current = setTimeout(() => setShowControls(false), hideDelayMs)
+  }, [hideDelayMs])
 
   const onPointerActivity = useCallback(() => {
     setShowControls(true)
