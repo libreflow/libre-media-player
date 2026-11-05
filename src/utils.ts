@@ -1,5 +1,25 @@
 export const MAX_VOLUME = 130
 
+// Playback speed bounds (mpv accepts far more, but outside this range
+// audio is pitch-shifted garbage and there is nothing left to lip-read).
+export const MIN_PLAYBACK_SPEED = 0.25
+export const MAX_PLAYBACK_SPEED = 4
+
+// Speed step for the < and > shortcuts: 0.25 keeps every multiple of the
+// default (1) reachable from both directions -- no reset shortcut needed.
+export const SPEED_STEP = 0.25
+
+// Pure helper for the < / > speed shortcuts: clamps to the bounds and
+// rounds away float drift (0.1 + 0.2 style) so the displayed value and
+// mpv's stay identical.
+export function nextPlaybackSpeed(current: number, delta: number): number {
+  const raw = current + delta
+  return Math.min(
+    MAX_PLAYBACK_SPEED,
+    Math.max(MIN_PLAYBACK_SPEED, Math.round(raw * 100) / 100),
+  )
+}
+
 export const VIDEO_EXTENSIONS = [
   'mp4', 'mkv', 'avi', 'mov', 'webm', 'm4v', 'flv', 'wmv', 'ts', 'mpg', 'mpeg',
 ]

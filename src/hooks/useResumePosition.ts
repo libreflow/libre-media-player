@@ -55,11 +55,16 @@ export function useResumePosition(ready: boolean, onBeforeSave?: () => Promise<v
   // pointing at the OLD path for that whole duration. Saving the outgoing
   // position happens up front (on its own copy, in the background); the
   // tracking reset to the new path only once loadfile has succeeded.
-  const onFileChangeOutgoing = useCallback(() => {
+  const onFileChangeOutgoing = useCallback(async () => {
+    // Refresh the track selection first (same contract as checkpoint):
+    // without this, the sid/aid persisted on a file switch could be up to
+    // RESUME_SAVE_INTERVAL_MS stale -- switching the audio track and
+    // immediately skipping to the next file saved the OLD track.
+    await onBeforeSaveRef.current?.().catch(() => {})
     const outgoing = stateRef.current
     const { path: oldPath, timePos, duration, sid, aid } = outgoing
     if (!oldPath || timePos == null) return
-    void saveResumePosition(oldPath, timePos, duration ?? 0, { sid: sid ?? undefined, aid: aid ?? undefined })
+    await saveResumePosition(oldPath, timePos, duration ?? 0, { sid: sid ?? undefined, aid: aid ?? undefined })
   }, [])
 
   const onFileChangeIncoming = useCallback((path: string) => {

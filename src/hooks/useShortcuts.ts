@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { MAX_VOLUME } from '../utils'
+import { MAX_VOLUME, SPEED_STEP } from '../utils'
 import { userFacingMessage } from '../errors'
 
 // Seek step (seconds) for ArrowLeft/ArrowRight. 10s matches VLC's default
@@ -50,6 +50,11 @@ export function useKeyboardShortcuts(opts: {
   // Audio delay nudge in seconds (roadmap #58): the [ and ] physical keys,
   // matching mpv's own default bindings for audio-delay up/down.
   adjustAudioDelay: (delta: number) => void
+  // Playback speed nudge (roadmap follow-up): the Comma/Period physical
+  // keys (mpv's own < and > speed bindings -- shifted on a QWERTY, dead
+  // or reversed on other layouts, hence the PHYSICAL-key match like the
+  // brackets above, layout-independent by construction).
+  adjustSpeed: (delta: number) => void
   // Screenshot capture (roadmap #60). The KeyC physical key: 's' is already
   // the subtitle toggle here and Control+S is reserved by the OS/browser.
   takeScreenshot: () => void
@@ -94,7 +99,8 @@ export function useKeyboardShortcuts(opts: {
       // require AltGr (a chord, ignored above), so e.key never matches.
       // Match those two on the PHYSICAL key instead, like letters.
       const bracket = e.code === 'BracketLeft' ? '[' : e.code === 'BracketRight' ? ']' : null
-      switch (letter != null ? `${e.shiftKey ? letter.toUpperCase() : letter}` : (bracket ?? e.key)) {
+      const angleValue = e.code === 'Comma' ? '<' : e.code === 'Period' ? '>' : null
+      switch (letter != null ? `${e.shiftKey ? letter.toUpperCase() : letter}` : (bracket ?? angleValue ?? e.key)) {
         case ' ':
         case 'k':
           e.preventDefault()
@@ -191,6 +197,18 @@ export function useKeyboardShortcuts(opts: {
           if (opts.hasMedia) {
             e.preventDefault()
             opts.adjustAudioDelay(-0.1)
+          }
+          break
+        case '<':
+          if (opts.hasMedia) {
+            e.preventDefault()
+            opts.adjustSpeed(-SPEED_STEP)
+          }
+          break
+        case '>':
+          if (opts.hasMedia) {
+            e.preventDefault()
+            opts.adjustSpeed(SPEED_STEP)
           }
           break
       }

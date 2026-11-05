@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { basename, formatTime, pickSupportedFile, splitPath, swapExtension, VIDEO_EXTENSIONS } from './utils'
+import {
+  basename,
+  formatTime,
+  nextPlaybackSpeed,
+  pickSupportedFile,
+  splitPath,
+  swapExtension,
+  VIDEO_EXTENSIONS,
+} from './utils'
 
 describe('formatTime', () => {
   it('renders a placeholder for null/NaN', () => {
@@ -108,5 +116,31 @@ describe('pickSupportedFile', () => {
   it('knows the supported extensions list', () => {
     expect(VIDEO_EXTENSIONS).toContain('mkv')
     expect(VIDEO_EXTENSIONS).toContain('webm')
+  })
+})
+
+describe('nextPlaybackSpeed', () => {
+  it('steps up and down by the 0.25 step', () => {
+    expect(nextPlaybackSpeed(1, 0.25)).toBe(1.25)
+    expect(nextPlaybackSpeed(1.25, -0.25)).toBe(1)
+  })
+
+  it('clamps to the bounds instead of exceeding them', () => {
+    expect(nextPlaybackSpeed(4, 0.25)).toBe(4)
+    expect(nextPlaybackSpeed(0.25, -0.25)).toBe(0.25)
+    // Large deltas clamp too, not overshoot.
+    expect(nextPlaybackSpeed(3.75, 1)).toBe(4)
+  })
+
+  it('rounds away float drift so displayed and mpv values match', () => {
+    expect(nextPlaybackSpeed(0.30000000000000004, 0.25)).toBe(0.55)
+  })
+
+  it('keeps every multiple of the default reachable (no reset shortcut needed)', () => {
+    let speed = 1
+    for (let i = 0; i < 12; i++) speed = nextPlaybackSpeed(speed, -0.25)
+    expect(speed).toBe(0.25) // clamped in MIN_PLAYBACK_SPEED steps
+    for (let i = 0; i < 15; i++) speed = nextPlaybackSpeed(speed, 0.25)
+    expect(speed).toBe(4)
   })
 })
