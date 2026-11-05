@@ -6,6 +6,10 @@ import { chapterAt, type Chapter } from '../../chapters'
 interface SeekBarProps {
   timePos: number | null
   duration: number | null
+  /** Current playback speed: time advances faster than the wall clock
+   * above 1x and the rAF extrapolation must match or the bar glides at the
+   * wrong rate between mpv ticks. */
+  speed?: number
   seekingRef: React.MutableRefObject<boolean>
   onSeekChange: (t: number) => void
   onSeekCommit: (t: number) => void
@@ -21,11 +25,18 @@ interface SeekBarProps {
 // gliding bar like VLC/modern web players. Extrapolation stops while
 // paused, while the user is dragging (seekingRef), and when the video
 // hasn't started (timePos == null).
-export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCommit, paused, visible, chapters }: SeekBarProps) {
+export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCommit, paused, visible, chapters, speed = 1 }: SeekBarProps) {
   const [displayPos, setDisplayPos] = useState<number | null>(timePos)
   // Hover preview (roadmap #61): position hovered on the track and the
   // chapter (if any) it would jump to, shown in a floating tooltip.
-  const [hover, setHover] = useState<{ pos: number; chapter: Chapter | null } | null>(null)
+  // Track and tooltip widths are measured IN THE POINTER HANDLER (reading
+  // refs during render is forbidden and unnecessary): the first move after
+  // mount falls back to the percentage clamp, every later move clamps the
+  // tooltip in pixels so it never sticks out of the track at the edges.
+  const [hover, setHover] = useState<
+    { pos: number; chapter: Chapter | null; trackWidth: number; tipWidth: number } | null
+  >(null)
+  const hoverElRef = useRef<HTMLSpanElement | null>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const timePosRef = useRef<number | null>(timePos)
   // Extrapolated position carried across rAF frames. Each frame must build on
@@ -71,7 +82,10 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
       if (!seekingRef.current && !pausedRef.current && timePosRef.current != null) {
         const dur = durationRef.current
         if (dur != null && dur > 0) {
-          const elapsed = (now - rafLastRef.current) / 1000
+          // Wall-clock delta scaled by the playback speed: at 2x the
+          // position advances twice as fast between two mpv ticks, and an
+          // unscaled glide visibly jumps back into sync every tick.
+          const elapsed = ((now - rafLastRef.current) / 1000) * speed
           const base = displayPosRef.current ?? timePosRef.current
           const next = Math.min(base + elapsed, dur)
           displayPosRef.current = next
@@ -83,7 +97,7 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
     }
     rafRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [visible, paused, timePos, duration, seekingRef])
+  }, [visible, paused, timePos, duration, seekingRef, speed])
 
   const fillPercent = duration != null && duration > 0
     ? `${Math.min(100, Math.max(0, ((displayPos ?? 0) / duration) * 100))}%`
@@ -99,6 +113,7 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
 
   const currentChapter = chapterAt(chapters, displayPos)
 
+
   return (
     <div className="seek-row">
       <span className="time">{formatTime(displayPos)}</span>
@@ -107,7 +122,14 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
         ref={trackRef}
         onPointerMove={(e) => {
           const pos = posFromClientX(e.clientX)
-          if (pos != null) setHover({ pos, chapter: chapterAt(chapters, pos) })
+          if (pos != null) {
+            setHover({
+              pos,
+              chapter: chapterAt(chapters, pos),
+              trackWidth: trackRef.current?.clientWidth ?? 0,
+              tipWidth: hoverElRef.current?.offsetWidth ?? 0,
+            })
+          }
         }}
         onPointerLeave={() => setHover(null)}
       >
@@ -153,13 +175,18 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
         ))}
         {hover && (
           <span
+            ref={hoverElRef}
             className="seek-hover"
             style={{
-              // Clamp so the translateX(-50%)-centered tooltip never
-              // sticks out of the track at the very edges.
-              left: duration != null
-                ? `${Math.min(98, Math.max(2, (hover.pos / duration) * 100))}%`
-                : undefined,
+              // Pixel clamp when the widths are known; percentage fallback
+              // for the first move after mount (and jsdom).
+              left:
+                duration != null && duration > 0 && hover.trackWidth > 0 && hover.tipWidth > 0
+                  ? `${Math.min(
+                      hover.trackWidth - hover.tipWidth / 2,
+                      Math.max(hover.tipWidth / 2, (hover.pos / duration) * hover.trackWidth),
+                    )}px`
+                  : `${Math.min(98, Math.max(2, (hover.pos / (duration ?? 1)) * 100))}%`,
             }}
           >
             <span className="seek-hover__time">{formatTime(hover.pos)}</span>

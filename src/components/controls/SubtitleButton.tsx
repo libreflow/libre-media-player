@@ -10,6 +10,9 @@ interface SubtitleButtonProps {
   onToggleSubtitles: () => void
   onSelectSubtrack: (id: number) => void
   onDisableSubtitles: () => void
+  /** Non-zero when a full-screen overlay just opened: closes the menu so it
+   * can't stay open UNDER the overlay. */
+  closeSignal?: number
 }
 
 // Combined subtitle control: clicking the CC icon toggles subtitle visibility
@@ -24,23 +27,41 @@ export function SubtitleButton({
   onToggleSubtitles,
   onSelectSubtrack,
   onDisableSubtitles,
+  closeSignal = 0,
 }: SubtitleButtonProps) {
   const [open, setOpen] = useState(false)
+  // Force-closed while a full-screen overlay (the shortcuts help) is up:
+  // the menu must not sit open UNDER its backdrop -- Escape would only
+  // reveal it back with nothing left in the layer chain to close it.
+  // Derived (not an effect) so no setState runs inside an effect.
+  const shown = open && closeSignal === 0
   const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!open) return
+    if (!shown) return
     const onPointerDown = (e: MouseEvent) => {
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
     }
     window.addEventListener('mousedown', onPointerDown)
     return () => window.removeEventListener('mousedown', onPointerDown)
-  }, [open])
+  }, [shown])
+
 
   const hasTracks = subTracks.length > 0
 
   return (
-    <div className="track-menu" ref={rootRef}>
+    <div
+      className="track-menu"
+      ref={rootRef}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && shown) {
+          setOpen(false)
+          // Keep the global Escape chain (help -> queue -> fullscreen) out
+          // of it: this keypress belongs to the topmost menu layer.
+          e.stopPropagation()
+        }
+      }}
+    >
       <div className="subtitle-btn-group">
         <button
           type="button"
@@ -58,13 +79,13 @@ export function SubtitleButton({
         {hasTracks && (
           <button
             type="button"
-            className={`icon-btn subtitle-caret${open ? ' is-active' : ''}`}
+            className={`icon-btn subtitle-caret${shown ? ' is-active' : ''}`}
             onClick={(e) => {
               e.stopPropagation()
               setOpen((v) => !v)
             }}
             aria-label={translate('chooseSubtrack')}
-            aria-expanded={open}
+            aria-expanded={shown}
             title={translate('chooseSubtrack')}
             aria-haspopup="menu"
           >
@@ -74,7 +95,7 @@ export function SubtitleButton({
           </button>
         )}
       </div>
-      {open && hasTracks && (
+      {shown && hasTracks && (
         <div
           className="track-menu__panel"
           role="menu"

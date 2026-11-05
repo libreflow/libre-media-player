@@ -89,6 +89,7 @@ const fr = {
   scAudioDelay: 'Piste audio plus tôt / plus tard',
   scSpeed: 'Vitesse de lecture − / + 0,25×',
   scScreenshot: 'Capture d’écran',
+  resetSpeed: 'Revenir à la vitesse normale (×1)',
   // Updater (#63)
   updateAvailable: 'Version {version} disponible — cliquez pour installer',
   updateReady: 'Mise à jour prête. Redémarrer pour appliquer ?',
@@ -168,6 +169,7 @@ const en: Record<MessageKey, string> = {
   scAudioDelay: 'Audio track earlier / later',
   scSpeed: 'Playback speed − / + 0.25×',
   scScreenshot: 'Screenshot',
+  resetSpeed: 'Reset to normal speed (×1)',
   updateAvailable: 'Version {version} available — click to install',
   updateReady: 'Update ready. Restart to apply?',
   updateCheckFailed: 'Update check failed: {err}',
