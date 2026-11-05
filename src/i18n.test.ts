@@ -29,3 +29,20 @@ describe('t', () => {
     }
   })
 })
+
+
+// Regression (audit final): key parity is enforced by the type, but a
+// translation that loses a {placeholder} passed silently -- the EN catalog
+// could ship a message that renders the raw "{err}" to the user.
+describe('placeholder parity between catalogs', () => {
+  it('every placeholder in the fr catalog exists in the en one (and back)', async () => {
+    const { CATALOGS } = await import('./i18n')
+    const frCat = CATALOGS.fr as unknown as Record<string, string>
+    const enCat = CATALOGS.en as unknown as Record<string, string>
+    const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort()
+    for (const [key, frText] of Object.entries(frCat)) {
+      expect(enCat[key], `key ${key} is missing from the en catalog`).toBeDefined()
+      expect(placeholders(enCat[key]), `en/${key}`).toEqual(placeholders(frText))
+    }
+  })
+})

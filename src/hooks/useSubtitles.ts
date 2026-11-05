@@ -14,6 +14,7 @@ import {
   type MpvTrack,
 } from '../subtitles'
 import { loadSettings, updateSettings } from '../settings'
+import { getResumeTracks } from '../resume'
 
 // Applies the user's preferred audio language (roadmap #58) to the given
 // track list: selects the first track whose mpv lang code matches the
@@ -35,6 +36,7 @@ export function pickPreferredAudioTrack(
   return null
 }
 import { userFacingMessage } from '../errors'
+import { t } from '../i18n'
 
 // Auto-loads a sidecar subtitle file (same name as the video, or with a
 // common language tag) when a file is opened, and exposes a visible/hidden
@@ -158,14 +160,24 @@ export function useSubtitles(onError?: (msg: string) => void) {
           if (superseded()) return
         }
       }
-      // Preferred audio language (roadmap #58): once the track lists are
-      // fresh, nudge mpv toward the user's saved language if the file has a
-      // matching track. Best-effort -- a file without the preferred track
-      // keeps mpv's default selection.
+      // Preferred audio language (roadmap #58): nudge mpv toward the
+      // user's saved language if the file has a matching track --
+      // UNLESS this file has a remembered selection: loadFileInner just
+      // restored the resume entry's aid, and re-applying the preference
+      // on top silently overrode the per-file choice the user made (and
+      // the next checkpoint would persist the WRONG track). Best-effort
+      // -- a file without the preferred track keeps mpv's default.
       try {
         const audio = await audioTracks()
         if (superseded()) return
+        const restored = await getResumeTracks(videoPath)
+        if (superseded()) return
+        if (restored?.aid != null) {
+          await refreshTracks(superseded)
+          return
+        }
         const { preferredAudioLang } = await loadSettings()
+        if (superseded()) return
         const preferred = pickPreferredAudioTrack(audio, preferredAudioLang)
         if (preferred) await setAudioTrack(preferred.id)
       } catch {
@@ -214,7 +226,7 @@ export function useSubtitles(onError?: (msg: string) => void) {
       // like every other user-triggered action in the app (openFile,
       // togglePause, playlist ops) instead of letting an
       // unhandled rejection escape from `void subtitles.toggle()` in App.tsx.
-      onError?.(userFacingMessage('Les sous-titres sont indisponibles.', e).message)
+      onError?.(userFacingMessage(t('errSubtitlesBad'), e).message)
     }
   }, [onError, refreshTracks])
 
@@ -236,7 +248,7 @@ export function useSubtitles(onError?: (msg: string) => void) {
       // Same reasoning as toggle() above: a user-triggered action must
       // surface its failure via onError, not escape as an unhandled
       // rejection from `void subtitles.selectSubtrack(id)` in App.tsx.
-      onError?.(userFacingMessage('Impossible de sélectionner ce sous-titre.', e).message)
+      onError?.(userFacingMessage(t('errSelectSubBad'), e).message)
     }
   }, [refreshTracks, onError])
 
@@ -246,7 +258,7 @@ export function useSubtitles(onError?: (msg: string) => void) {
       setVisible(false)
       void refreshTracks()
     } catch (e) {
-      onError?.(userFacingMessage('Impossible de désactiver les sous-titres.', e).message)
+      onError?.(userFacingMessage(t('errDisableSubBad'), e).message)
     }
   }, [refreshTracks, onError])
 
@@ -264,7 +276,7 @@ export function useSubtitles(onError?: (msg: string) => void) {
       }
       void refreshTracks()
     } catch (e) {
-      onError?.(userFacingMessage('Impossible de sélectionner cette piste audio.', e).message)
+      onError?.(userFacingMessage(t('errSelectAudioBad'), e).message)
     }
   }, [refreshTracks, onError])
 

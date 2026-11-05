@@ -38,6 +38,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: vi.fn(() => ({
     onCloseRequested: vi.fn(async () => () => {}),
+    onResized: vi.fn(async () => () => {}),
     isFullscreen: vi.fn(async () => false),
     setFullscreen: vi.fn(async () => {}),
     listen: vi.fn(async () => () => {}),

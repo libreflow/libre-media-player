@@ -52,16 +52,22 @@ const fr = {
   // Seek bar / OSD
   chapter: 'Chapitre',
   // Errors
-  errFullscreen: 'Plein écran indisponible : {err}',
   errLoad: 'Impossible de lire ce fichier : {err}',
-  errInit: 'Échec d’initialisation du lecteur : {err}',
-  errSettings: 'Impossible d’ouvrir les réglages : {err}',
-  errSubtitles: 'Sous-titres indisponibles : {err}',
-  errSelectSub: 'Sélection du sous-titre impossible : {err}',
-  errDisableSub: 'Désactivation des sous-titres impossible : {err}',
-  errSelectAudio: 'Sélection de la piste audio impossible : {err}',
-  errQueue: 'File d’attente indisponible : {err}',
-  errPicker: 'Impossible d’ouvrir le sélecteur de fichier : {err}',
+  dialogTitle: 'Ouvrir une vidéo',
+  dialogFilterName: 'Vidéo',
+  errInitEngine: 'Le moteur de lecture (mpv) n’a pas pu démarrer. Redémarrez l’application ; si le problème persiste, réinstallez-la.',
+  errInitialFile: 'Impossible d’ouvrir le fichier initial.',
+  errRecentOpen: 'Impossible d’ouvrir ce fichier.',
+  errPlaylistBad: 'La file d’attente est indisponible.',
+  errSettingsOpen: 'Impossible d’ouvrir les réglages Windows.',
+  errFullscreenBad: 'Le plein écran n’est pas disponible pour cette fenêtre.',
+  errDialogBad: 'Le sélecteur de fichier n’a pas pu être ouvert. Réessayez.',
+  errSubtitlesBad: 'Les sous-titres sont indisponibles pour ce fichier.',
+  errSelectSubBad: 'Impossible de sélectionner ce sous-titre.',
+  errDisableSubBad: 'Impossible de désactiver les sous-titres.',
+  errSelectAudioBad: 'Impossible de sélectionner cette piste audio.',
+  errTrackBad: 'Cette piste n’est pas disponible.',
+  errUnreadable: 'Le fichier est introuvable, illisible, ou son format n’est pas pris en charge.',
   errInitSlow: 'Initialisation du lecteur trop lente : impossible d’ouvrir le fichier.',
   // mpv error descriptions (#57)
   errFileNotFound: 'Fichier introuvable ou inaccessible.',
@@ -93,6 +99,7 @@ const fr = {
   // Updater (#63)
   updateAvailable: 'Version {version} disponible — cliquez pour installer',
   updateReady: 'Mise à jour prête. Redémarrer pour appliquer ?',
+  updateInstalling: 'Téléchargement de la mise à jour…',
   updateCheckFailed: 'Vérification de mise à jour impossible : {err}',
   // Language (#64)
   language: 'Langue',
@@ -138,16 +145,22 @@ const en: Record<MessageKey, string> = {
   clearQueue: 'Clear queue',
   removeItem: 'Remove {name}',
   chapter: 'Chapter',
-  errFullscreen: 'Fullscreen unavailable: {err}',
   errLoad: 'Cannot play this file: {err}',
-  errInit: 'Player initialization failed: {err}',
-  errSettings: 'Cannot open settings: {err}',
-  errSubtitles: 'Subtitles unavailable: {err}',
-  errSelectSub: 'Cannot select subtitle: {err}',
-  errDisableSub: 'Cannot disable subtitles: {err}',
-  errSelectAudio: 'Cannot select audio track: {err}',
-  errQueue: 'Queue unavailable: {err}',
-  errPicker: 'Cannot open the file picker: {err}',
+  dialogTitle: 'Open a video',
+  dialogFilterName: 'Video',
+  errInitEngine: 'The playback engine (mpv) could not start. Restart the app; if it persists, reinstall it.',
+  errInitialFile: 'Could not open the initial file.',
+  errRecentOpen: 'Could not open this file.',
+  errPlaylistBad: 'The playback queue is unavailable.',
+  errSettingsOpen: 'Could not open the Windows settings.',
+  errFullscreenBad: 'Fullscreen is not available for this window.',
+  errDialogBad: 'The file picker could not be opened. Try again.',
+  errSubtitlesBad: 'Subtitles are unavailable for this file.',
+  errSelectSubBad: 'Could not select this subtitle.',
+  errDisableSubBad: 'Could not disable subtitles.',
+  errSelectAudioBad: 'Could not select this audio track.',
+  errTrackBad: 'This track is not available.',
+  errUnreadable: 'The file is missing, unreadable, or in an unsupported format.',
   errInitSlow: 'Player initialization is too slow: cannot open the file.',
   errFileNotFound: 'File not found or inaccessible.',
   errPermission: 'Access to the file denied — check read permissions.',
@@ -172,11 +185,14 @@ const en: Record<MessageKey, string> = {
   resetSpeed: 'Reset to normal speed (×1)',
   updateAvailable: 'Version {version} available — click to install',
   updateReady: 'Update ready. Restart to apply?',
+  updateInstalling: 'Downloading the update…',
   updateCheckFailed: 'Update check failed: {err}',
   language: 'Language',
 }
 
-const CATALOGS: Record<Locale, Record<MessageKey, string>> = { fr, en }
+// Exported for the placeholder-parity test (the catalogs are plain data;
+// there is nothing behaviorally private in them).
+export const CATALOGS: Record<Locale, Record<MessageKey, string>> = { fr, en }
 
 export const LOCALES: Locale[] = ['fr', 'en']
 

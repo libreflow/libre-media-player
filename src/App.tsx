@@ -42,7 +42,6 @@ function App() {
   // Chapters of the loaded file (roadmap #61) — read once per successful
   // load via the player's onFileLoaded callback.
   const [chapters, setChapters] = useState<Chapter[]>([])
-  const chaptersRef = useRef<Chapter[]>([])
   // Highest load generation that has STARTED a chapter read. ReadChapters
   // is async: on a rapid A -> B switch, a slow read for A can resolve after
   // B's and overwrite B's chapters (or A's stale mpv reads mix file states
@@ -67,17 +66,14 @@ function App() {
     if (loadGeneration > chaptersGenRef.current) {
       chaptersGenRef.current = loadGeneration
       setChapters([])
-      chaptersRef.current = []
     }
     void readChapters((name, format) => getProperty(name, format))
       .then((chapters) => {
         if (loadGeneration < chaptersGenRef.current) return
-        chaptersRef.current = chapters ?? []
         setChapters(chapters ?? [])
       })
       .catch(() => {
         if (loadGeneration < chaptersGenRef.current) return
-        chaptersRef.current = []
         setChapters([])
       })
   })
@@ -149,7 +145,13 @@ function App() {
   // On-screen display for arrow-key seeks: shows "+10s" / "-10s" with the
   // resulting position, fading out after a short delay. Repeated presses
   // within the window just restart the timer (and re-render the text).
-  const [seekOsd, setSeekOsd] = useState<{ delta: number; at: number | null } | null>(null)
+  const [seekOsd, setSeekOsd] = useState<{ delta: number; at: number | null; seq: number } | null>(null)
+  // Monotonic id for the seek OSD's React key: the former composite key
+  // (delta + at) collided (delta=11/at=5 === delta=1/at=15 -> unwanted
+  // remount) and repeated identical seeks produced the SAME key so the
+  // pop-in animation never replayed -- the OSD looked dead while its
+  // timer restarted.
+  const seekOsdSeqRef = useRef(0)
   const seekOsdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const seekBy = useCallback((delta: number) => {
     // Fire-and-forget, but swallow rejections: a failed seek (e.g. mpv busy)
@@ -159,7 +161,7 @@ function App() {
     // can lag a tick behind the keypress; show the delta immediately so
     // the OSD never feels unresponsive. The absolute position follows on
     // the next observer tick (player.timePos changes re-render below).
-    setSeekOsd({ delta, at: player.timePos != null ? player.timePos + delta : null })
+    setSeekOsd({ delta, at: player.timePos != null ? player.timePos + delta : null, seq: ++seekOsdSeqRef.current })
     // Same slot as the notices (see showNotice): the most recent wins.
     setNotice(null)
     if (noticeTimerRef.current) {
@@ -209,7 +211,10 @@ function App() {
   }, [player.pausedRef, player.togglePause, flashPause])
 
   // Auto-update (roadmap #63): a found update shows a clickable notice.
-  const { update, install } = useUpdateCheck(showNotice, onError)
+  const { update, installing, installed, install } = useUpdateCheck(showNotice, onError)
+  // Session-scoped dismiss: the prompt otherwise sat over the media at
+  // EVERY launch until the update -- with no way to put it away.
+  const [updateDismissed, setUpdateDismissed] = useState(false)
   // The update prompt renders SEPARATELY from the transient notices: both
   // shared the single `notice` slot before, so adjusting the volume or the
   // speed during the prompt's lifetime permanently DESTROYED the install
@@ -317,7 +322,7 @@ function App() {
       {seekOsd && hasMedia && (
         <div
           className="seek-osd"
-          key={seekOsd.delta + String(seekOsd.at)}
+          key={seekOsd.seq}
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
         >
@@ -340,16 +345,37 @@ function App() {
         </div>
       )}
       <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
-      {update != null && (
-        <div
-          className="seek-osd seek-osd--update seek-osd--clickable"
-          role="status"
-          onClick={(e) => {
-            e.stopPropagation()
-            void install()
-          }}
-        >
-          {t('updateAvailable', { version: update.version })}
+      {update != null && !installed && !updateDismissed && (
+        <div className="seek-osd seek-osd--update" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="seek-osd__action"
+            // aria-disabled instead of disabled: a disabled button would
+            // vanish from the tab order and stop announcing the in-flight
+            // install.
+            aria-disabled={installing}
+            onClick={() => void install()}
+          >
+            {installing ? t('updateInstalling') : t('updateAvailable', { version: update.version })}
+          </button>
+          <button
+            type="button"
+            className="icon-btn seek-osd__dismiss"
+            aria-label={t('close')}
+            onClick={(e) => {
+              e.stopPropagation()
+              setUpdateDismissed(true)
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            </svg>
+          </button>
+        </div>
+      )}
+      {installed && (
+        <div className="seek-osd seek-osd--update" role="status">
+          {t('updateReady')}
         </div>
       )}
       {notice && (
@@ -461,7 +487,7 @@ function App() {
         onPlayPrevious={playlist.playPrevious}
         onOpenFile={() => void openFile()}
         onOpenDefaultAppsSettings={() => {
-          void openDefaultAppsSettings().catch((e) => onError(userFacingMessage("Impossible d'ouvrir les réglages Windows.", e).message))
+          void openDefaultAppsSettings().catch((e) => onError(userFacingMessage(t('errSettingsOpen'), e).message))
         }}
         onTogglePlaylist={() => playlist.setPanelOpen(!playlist.panelOpen)}
         togglePause={player.togglePause}

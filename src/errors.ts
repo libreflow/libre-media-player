@@ -1,7 +1,10 @@
 // Maps raw technical exceptions (mpv/Tauri IPC, plugin errors) to clear
-// French messages for the error banner. The underlying detail is preserved
+// localized messages for the error banner (the summaries live in i18n so
+// the EN locale shows English too). The underlying detail is preserved
 // through the Error's cause so a future diagnostic surface (logs, a details
 // expander) can still reach it -- the user only ever sees the summary.
+
+import { t, type MessageKey } from './i18n'
 
 export class UserFacingError extends Error {
   /** Raw technical detail, kept for diagnostics. */
@@ -21,23 +24,30 @@ function technicalDetail(e: unknown): string {
 }
 
 // The actual mapping: each known failure mode of the app gets one fixed,
-// non-technical message. Anything unrecognized keeps a generic message so a
-// new/unknown mpv error never leaks its raw English text to the user.
+// non-technical message. Anything unrecognized keeps the caller's fallback
+// message so a new/unknown mpv error never leaks its raw text to the user.
 export function userFacingMessage(
-  fallback: string,
+  fallback: MessageKey | string,
   e: unknown,
 ): UserFacingError {
   const detail = technicalDetail(e)
-  const known: Array<[RegExp, string]> = [
-    [/init|initialize|mpv/i, 'Le moteur de lecture (mpv) n\u2019a pas pu d\u00e9marrer. Red\u00e9marrez l\u2019application\u00a0; si le probl\u00e8me persiste, r\u00e9installez-la.'],
-    [/error running command|command (failed|not found)|no such file|doesn'?t exist|not found|access is denied|permission/i, 'Le fichier est introuvable, illisible, ou son format n\u2019est pas pris en charge.'],
-    [/fullscreen/i, 'Le plein \u00e9cran n\u2019est pas disponible pour cette fen\u00eatre.'],
-    [/dialog/i, 'Le s\u00e9lecteur de fichier n\u2019a pas pu \u00eatre ouvert. R\u00e9essayez.'],
-    [/sub-?title|sid/i, 'Les sous-titres sont indisponibles pour ce fichier.'],
-    [/track/i, 'Cette piste n\u2019est pas disponible.'],
+  // Specific patterns FIRST: the generic file/command pattern below also
+  // catches e.g. "error running command", which used to swallow every track
+  // or subtitle failure emitted by the mpv wrapper and claim the FILE was
+  // unreadable instead.
+  const known: Array<[RegExp, MessageKey]> = [
+    [/init|initialize|mpv/i, 'errInitEngine'],
+    [/sub-?title|sid/i, 'errSubtitlesBad'],
+    [/track/i, 'errTrackBad'],
+    [/fullscreen/i, 'errFullscreenBad'],
+    [/dialog/i, 'errDialogBad'],
+    [/error running command|command (failed|not found)|no such file|doesn'?t exist|not found|access is denied|permission/i, 'errUnreadable'],
   ]
-  for (const [pattern, message] of known) {
-    if (pattern.test(detail)) return new UserFacingError(message, e)
+  for (const [pattern, key] of known) {
+    if (pattern.test(detail)) return new UserFacingError(t(key), e)
   }
-  return new UserFacingError(fallback, e)
+  // Callers may pass a localized MessageKey instead of a raw string; t()
+  // returns the key as-is when it is not in the catalog, so a plain string
+  // fallback still flows through unchanged.
+  return new UserFacingError(t(fallback as MessageKey), e)
 }

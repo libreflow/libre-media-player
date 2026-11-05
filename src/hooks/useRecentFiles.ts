@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { addRecentFile, clearRecentFiles, pruneRecentFiles, type RecentEntry } from '../recent'
 import { basename } from '../utils'
 import { userFacingMessage } from '../errors'
+import { t } from '../i18n'
 
 // Home screen's recently-opened list. Loaded and pruned (dead paths
 // dropped) once on mount; entries are added by the app whenever a file
@@ -58,7 +59,7 @@ export function useRecentFiles(opts: {
           recordOpened(path)
         })
         .catch((e) => {
-          optsRef.current.onError(userFacingMessage("Impossible d'ouvrir ce fichier.", e).message)
+          optsRef.current.onError(userFacingMessage(t('errRecentOpen'), e).message)
         })
     },
     [recordOpened],

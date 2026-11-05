@@ -44,6 +44,11 @@ export function useLocale() {
 export function useUpdateCheck(onNotice: (msg: string) => void, onError: (msg: string) => void) {
   const [update, setUpdate] = useState<Update | null>(null)
   const [installing, setInstalling] = useState(false)
+  // Set once downloadAndInstall succeeds: the prompt must switch from
+  // "install" to "installed" -- a second click on a stale prompt re-ran a
+  // download + install against an already-updated binary and failed
+  // visibly.
+  const [installed, setInstalled] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -60,17 +65,18 @@ export function useUpdateCheck(onNotice: (msg: string) => void, onError: (msg: s
   }, [])
 
   const install = useCallback(async () => {
-    if (update == null || installing) return
+    if (update == null || installing || installed) return
     setInstalling(true)
     try {
       await update.downloadAndInstall()
+      setInstalled(true)
       onNotice(t('updateReady'))
     } catch (e) {
       onError(t('updateCheckFailed', { err: String(e) }))
     } finally {
       setInstalling(false)
     }
-  }, [update, installing, onNotice, onError])
+  }, [update, installing, installed, onNotice, onError])
 
-  return { update, installing, install }
+  return { update, installing, installed, install }
 }
