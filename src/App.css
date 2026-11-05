@@ -20,7 +20,11 @@
   align-items: center;
   justify-content: center;
   gap: 16px;
-  background: var(--color-bg);
+  /* Slightly more modern than a flat fill: a faint accent-lit glow behind
+     the logo gives the (media-less) home screen depth without competing
+     with the one surface that matters -- the video itself stays fully
+     visible everywhere else. */
+  background: radial-gradient(circle at 50% 36%, #1c1c26 0%, var(--color-bg) 62%);
   color: var(--color-text-faint);
   -webkit-app-region: drag;
   /* Gentle entrance: the home screen fades and rises into place instead of
@@ -182,9 +186,10 @@
 .error-banner {
   -webkit-app-region: no-drag;
   background: var(--color-error-bg);
+  backdrop-filter: blur(var(--glass-blur-sm));
   color: var(--color-error);
   border: 1px solid var(--color-error-border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   padding: 8px 14px;
   font-size: 12px;
   max-width: 80%;
@@ -248,6 +253,7 @@
   padding: 8px 18px;
   border-radius: var(--radius-md);
   background: var(--color-bg-overlay);
+  backdrop-filter: blur(var(--glass-blur-sm));
   color: var(--color-text);
   font-size: 20px;
   font-weight: 600;
@@ -275,18 +281,24 @@
 
 .controls {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  /* Floating glass bar instead of a full-width opaque band: the media
+     stays visible around the bar's corners and side margins -- the whole
+     point of the "maximum visibility" constraint. The blur keeps the
+     white text readable over bright scenes. */
+  left: 12px;
+  right: 12px;
+  bottom: 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 8px 16px 12px;
-  /* True overlay: the video keeps its full size at all times (no reserved
-     mpv margin anymore), and the bar floats above it on a light gradient.
-     Fade in/out only -- no translate, so nothing "slides" over the picture
-     when the bar appears; the picture itself never moves. */
-  background: linear-gradient(to top, rgba(10, 10, 14, 0.72), rgba(10, 10, 14, 0));
+  padding: 10px 16px 10px;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-overlay);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--color-border-soft);
+  box-shadow: var(--shadow-float);
+  /* Fade in/out only -- no translate, so nothing "slides" over the
+     picture when the bar appears; the picture itself never moves. */
   opacity: 0;
   transition: opacity 0.22s ease;
   pointer-events: none;
@@ -457,10 +469,24 @@
   max-height: 260px;
   overflow-y: auto;
   background: var(--color-bg-overlay);
-  border: 1px solid var(--color-accent-soft);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
   padding: 6px;
   z-index: 20;
+  animation: pop-in 0.12s ease both;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .track-menu__title {
@@ -517,16 +543,32 @@
   position: absolute;
   top: 16px;
   right: 16px;
-  /* Kept above the control bar without hardcoding its height twice. */
+  /* Kept above the floating control bar without hardcoding its height. */
   bottom: var(--controls-reserve);
   width: 300px;
   display: flex;
   flex-direction: column;
   background: var(--color-bg-overlay);
-  backdrop-filter: blur(8px);
-  border-radius: var(--radius-md);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
   z-index: 20;
   overflow: hidden;
+  /* Entrance: slides in from its anchor edge (frozen by
+     prefers-reduced-motion's global rule). */
+  animation: panel-in 0.18s ease both;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .playlist-panel__header {
@@ -636,6 +678,7 @@
   padding: 4px 8px;
   border-radius: 6px;
   background: var(--color-bg-overlay);
+  backdrop-filter: blur(var(--glass-blur-sm));
   border: 1px solid var(--color-border-soft);
   color: var(--color-text);
   font-size: 11px;
@@ -809,12 +852,14 @@ button.playlist-panel__name {
   position: relative;
   background: var(--color-bg-overlay);
   border: 1px solid var(--color-border-soft);
-  border-radius: var(--radius-md);
-  backdrop-filter: blur(8px);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-float);
   padding: 18px 20px 14px;
   width: min(520px, calc(100% - 64px));
   max-height: min(480px, calc(100% - 64px));
   overflow-y: auto;
+  animation: pop-in 0.12s ease both;
 }
 
 .shortcuts-help__title {
