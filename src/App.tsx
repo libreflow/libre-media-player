@@ -8,6 +8,7 @@ import { useSubtitles } from './hooks/useSubtitles'
 import { usePlaylist } from './hooks/usePlaylist'
 import { useRecentFiles } from './hooks/useRecentFiles'
 import { useLocale, useUpdateCheck } from './hooks/useAppPrefs'
+import { relaunch } from '@tauri-apps/plugin-process'
 import { openDefaultAppsSettings } from './defaultApps'
 import { userFacingMessage } from './errors'
 import { formatTime } from './utils'
@@ -373,9 +374,29 @@ function App() {
           </button>
         </div>
       )}
-      {installed && (
+      {installed && !updateDismissed && (
         <div className="seek-osd seek-osd--update" role="status">
           {t('updateReady')}
+          <button
+            type="button"
+            className="seek-osd__action"
+            onClick={() => void relaunch().catch((e) => onError(userFacingMessage(t('errRestart'), e).message))}
+          >
+            {t('updateRestart')}
+          </button>
+          <button
+            type="button"
+            className="icon-btn seek-osd__dismiss"
+            aria-label={t('close')}
+            onClick={(e) => {
+              e.stopPropagation()
+              setUpdateDismissed(true)
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            </svg>
+          </button>
         </div>
       )}
       {notice && (
@@ -479,7 +500,7 @@ function App() {
         // "no next" while the 'n' key still advances.
         hasNext={
           playlist.currentIndex < playlist.queue.length - 1 ||
-          playlist.repeat ||
+          (playlist.repeat && playlist.queue.length > 0) ||
           (playlist.shuffle && playlist.queue.length > 1)
         }
         hasPrevious={playlist.currentIndex > 0 || (playlist.repeat && playlist.queue.length > 0)}

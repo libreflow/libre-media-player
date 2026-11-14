@@ -103,13 +103,13 @@ async fn open_default_apps_settings(app: tauri::AppHandle) -> Result<(), String>
 
     app.opener()
         .open_url(uri, None::<&str>)
-        .map_err(|e| format!("Impossible d'ouvrir les réglages Windows : {e}"))
+        .map_err(|e| format!("failed to open default apps settings: {e}"))
 }
 
 #[cfg(not(windows))]
 #[tauri::command]
 async fn open_default_apps_settings() -> Result<(), String> {
-    Err("Réglages des applications par défaut disponibles uniquement sur Windows".to_string())
+    Err("default apps settings are only available on Windows".to_string())
 }
 
 fn focus_main_window(app: &AppHandle) {
@@ -163,6 +163,7 @@ pub fn run() {
     }
 
     builder
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())

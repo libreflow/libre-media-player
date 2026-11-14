@@ -98,9 +98,11 @@ const fr = {
   resetSpeed: 'Revenir à la vitesse normale (×1)',
   // Updater (#63)
   updateAvailable: 'Version {version} disponible — cliquez pour installer',
-  updateReady: 'Mise à jour prête. Redémarrer pour appliquer ?',
+  updateReady: 'Mise à jour installée. Redémarrer maintenant ?',
+  updateRestart: 'Redémarrer',
   updateInstalling: 'Téléchargement de la mise à jour…',
   updateCheckFailed: 'Vérification de mise à jour impossible : {err}',
+  errRestart: 'Impossible de redémarrer l’application.',
   // Language (#64)
   language: 'Langue',
 } as const
@@ -184,9 +186,11 @@ const en: Record<MessageKey, string> = {
   scScreenshot: 'Screenshot',
   resetSpeed: 'Reset to normal speed (×1)',
   updateAvailable: 'Version {version} available — click to install',
-  updateReady: 'Update ready. Restart to apply?',
+  updateReady: 'Update installed. Restart now?',
+  updateRestart: 'Restart',
   updateInstalling: 'Downloading the update…',
   updateCheckFailed: 'Update check failed: {err}',
+  errRestart: 'Could not restart the application.',
   language: 'Language',
 }
 

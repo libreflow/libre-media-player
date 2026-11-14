@@ -99,6 +99,27 @@ export function SeekBar({ timePos, duration, seekingRef, onSeekChange, onSeekCom
     return () => cancelAnimationFrame(rafRef.current)
   }, [visible, paused, timePos, duration, seekingRef, speed])
 
+  // Safety net for a drag whose release lands OUTSIDE the range input (a
+  // lost pointer capture): the input's own onMouseUp/onTouchEnd never fire,
+  // seekingRef stays true and the bar freezes (observer updates and the
+  // rAF glide are both gated on it). A window-level pointerup/pointercancel
+  // commits the pending position instead -- onSeekCommit resets the flag in
+  // its .finally. When the release does land on the input, both handlers
+  // commit the same value and the duplicate seek is harmless.
+  useEffect(() => {
+    const commitFromRef = () => {
+      if (seekingRef.current && displayPosRef.current != null) {
+        onSeekCommit(displayPosRef.current)
+      }
+    }
+    window.addEventListener('pointerup', commitFromRef)
+    window.addEventListener('pointercancel', commitFromRef)
+    return () => {
+      window.removeEventListener('pointerup', commitFromRef)
+      window.removeEventListener('pointercancel', commitFromRef)
+    }
+  }, [onSeekCommit, seekingRef])
+
   const fillPercent = duration != null && duration > 0
     ? `${Math.min(100, Math.max(0, ((displayPos ?? 0) / duration) * 100))}%`
     : '0%'
