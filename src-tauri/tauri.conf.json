@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Libre Media Player",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "dev.libreflow.libre-media-player",
   "build": {
     "frontendDist": "../dist",
