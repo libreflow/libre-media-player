@@ -71,6 +71,7 @@ export function ShortcutHelp({ open, onClose }: ShortcutHelpProps) {
           <Row keys={[t('kbdSpace'), 'K']} labelKey="scPlayPause" />
           <Row keys={['←', '→']} labelKey="scSeek" />
           <Row keys={['↑', '↓']} labelKey="scVolume" />
+          <Row keys={['M']} labelKey="scMute" />
           <Row keys={['F']} labelKey="scFullscreen" />
           <Row keys={['N']} labelKey="nextTrack" />
           <Row keys={['P']} labelKey="previousTrack" />

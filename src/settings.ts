@@ -15,6 +15,9 @@ export interface Settings {
   /** Preferred audio track language (mpv lang code or 'any', roadmap #58).
    * Persisted so the next opened file auto-selects it when available. */
   preferredAudioLang: string
+  /** Keep the user-chosen playback speed across files (roadmap follow-up):
+   * off by default -- speed stays a per-file diagnostic like A/V delay. */
+  keepPlaybackSpeed: boolean
 }
 
 export const DEFAULTS: Settings = {
@@ -23,6 +26,7 @@ export const DEFAULTS: Settings = {
   repeat: false,
   locale: 'fr',
   preferredAudioLang: 'any',
+  keepPlaybackSpeed: false,
 }
 
 // Persistence (cache + serialized writes + atomic write + corrupt-file
@@ -44,6 +48,7 @@ const store = createJsonStore<Settings>({
       repeat: typeof raw.repeat === 'boolean' ? raw.repeat : DEFAULTS.repeat,
       locale: raw.locale === 'fr' || raw.locale === 'en' ? raw.locale : DEFAULTS.locale,
       preferredAudioLang: typeof raw.preferredAudioLang === 'string' ? raw.preferredAudioLang : DEFAULTS.preferredAudioLang,
+      keepPlaybackSpeed: typeof raw.keepPlaybackSpeed === 'boolean' ? raw.keepPlaybackSpeed : DEFAULTS.keepPlaybackSpeed,
     }
   },
   pretty: true,
