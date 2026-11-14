@@ -94,6 +94,7 @@ const fr = {
   scSubDelay: 'Sous-titres plus tôt / plus tard',
   scAudioDelay: 'Piste audio plus tôt / plus tard',
   scSpeed: 'Vitesse de lecture − / + 0,25×',
+  scMute: 'Couper / réactiver le son',
   scScreenshot: 'Capture d’écran',
   resetSpeed: 'Revenir à la vitesse normale (×1)',
   // Updater (#63)
@@ -105,6 +106,9 @@ const fr = {
   errRestart: 'Impossible de redémarrer l’application.',
   // Language (#64)
   language: 'Langue',
+  // Settings menu
+  settingsTitle: 'Réglages',
+  keepSpeed: 'Garder la vitesse de lecture entre les fichiers',
 } as const
 
 export type MessageKey = keyof typeof fr
@@ -183,6 +187,7 @@ const en: Record<MessageKey, string> = {
   scSubDelay: 'Subtitles earlier / later',
   scAudioDelay: 'Audio track earlier / later',
   scSpeed: 'Playback speed − / + 0.25×',
+  scMute: 'Mute / unmute',
   scScreenshot: 'Screenshot',
   resetSpeed: 'Reset to normal speed (×1)',
   updateAvailable: 'Version {version} available — click to install',
@@ -192,6 +197,9 @@ const en: Record<MessageKey, string> = {
   updateCheckFailed: 'Update check failed: {err}',
   errRestart: 'Could not restart the application.',
   language: 'Language',
+  // Settings menu
+  settingsTitle: 'Settings',
+  keepSpeed: 'Keep playback speed between files',
 }
 
 // Exported for the placeholder-parity test (the catalogs are plain data;
