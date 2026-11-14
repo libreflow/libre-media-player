@@ -36,11 +36,17 @@ export function userFacingMessage(
   // or subtitle failure emitted by the mpv wrapper and claim the FILE was
   // unreadable instead.
   const known: Array<[RegExp, MessageKey]> = [
-    [/init|initialize|mpv/i, 'errInitEngine'],
     [/sub-?title|sid/i, 'errSubtitlesBad'],
     [/track/i, 'errTrackBad'],
     [/fullscreen/i, 'errFullscreenBad'],
     [/dialog/i, 'errDialogBad'],
+    // Engine failures BEFORE the generic file/command pattern: a detail like
+    // "libmpv not found" (missing DLL) contains "not found" and must map to
+    // the init message, not "file unreadable". The old bare "mpv"
+    // alternative sat in FIRST position and claimed any plugin error merely
+    // mentioning mpv as an engine failure even mid-playback -- "libmpv" is
+    // the engine-specific substring that actually identifies init failures.
+    [/init|initialize|libmpv/i, 'errInitEngine'],
     [/error running command|command (failed|not found)|no such file|doesn'?t exist|not found|access is denied|permission/i, 'errUnreadable'],
   ]
   for (const [pattern, key] of known) {

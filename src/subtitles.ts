@@ -10,7 +10,12 @@ function subtitleCandidates(videoPath: string): string[] {
   const { dir, name } = splitPath(videoPath)
   const bare = name.includes('.') ? name.slice(0, name.lastIndexOf('.')) : name
   // Also try "<bare>.<lang>.<ext>" patterns mpv would auto-discover.
-  const langVariants = ['en', 'fr', 'eng', 'fre']
+  // Covers the major languages in both ISO 639-1 and 639-2 codes so a
+  // "movie.de.srt" or "film.es.srt" sidecar is found too, not just EN/FR.
+  const langVariants = [
+    'en', 'fr', 'de', 'es', 'it', 'nl', 'pt', 'ru', 'ja', 'ko', 'zh',
+    'eng', 'fre', 'ger', 'spa', 'ita', 'dut', 'por', 'rus', 'jpn', 'kor', 'chi', 'zho',
+  ]
   return [
     ...sameExt,
     ...langVariants.flatMap((lang) =>
