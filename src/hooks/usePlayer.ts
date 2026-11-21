@@ -67,6 +67,13 @@ export function usePlayer(
   // loadfile and so does the mirrored React state.
   adjustSpeed: (delta: number) => number
   speed: number
+  // Keep-speed preference (see toggleKeepSpeed): true when the chosen
+  // playback speed survives loadfile.
+  keepPlaybackSpeed: boolean
+  toggleKeepSpeed: () => void
+  // Mute toggle ('m' shortcut): 0 <-> last non-zero volume; returns the
+  // resulting volume for the OSD.
+  toggleMute: () => number
   // Captures the displayed frame (subtitles included) to a PNG next to
   // the video (roadmap #60). Returns the destination path so the caller
   // can show a confirmation OSD.
@@ -94,6 +101,20 @@ export function usePlayer(
   const [subDelay, setSubDelayState] = useState(0)
   const [speed, setSpeedState] = useState(1)
   const speedRef = useRef(1)
+  // Last speed the USER chose via < / > (or the reset chip). With the
+  // keep-speed preference on, this is the speed the next file starts at.
+  const lastSpeedRef = useRef(1)
+  // Mirror of mpv's volume for interaction-time reads (toggleMute), kept in
+  // sync by the property observer and setVolume, like pausedRef for pause.
+  const volumeRef = useRef(100)
+  // Last non-zero volume, the value unmuting returns to (40 is the same
+  // sane floor VolumeControl's button uses when the slider never moved).
+  const lastNonZeroVolumeRef = useRef(100)
+  // Keep-speed preference (roadmap follow-up): when on, mpv's
+  // reset-on-next-file list drops 'speed' so the chosen speed survives
+  // loadfile, and the React mirror follows lastSpeedRef instead of 1.
+  const [keepSpeed, setKeepSpeedState] = useState(false)
+  const keepSpeedRef = useRef(false)
   const seekingRef = useRef(false)
   const readyRef = useRef(false)
   const pausedRef = useRef(true)
@@ -223,6 +244,8 @@ export function usePlayer(
           setFilename(event.data)
           break
         case 'volume':
+          volumeRef.current = event.data
+          if (event.data > 0) lastNonZeroVolumeRef.current = event.data
           setVolumeState(event.data)
           break
         case 'speed':
@@ -237,11 +260,22 @@ export function usePlayer(
     }
     observeUnlistenRef.current = unlisten
     // Restore the persisted volume once the player is up (mpv's own
-    // default is 100 and would otherwise override the saved value).
+    // default is 100 and would otherwise override the saved value), and
+    // apply the keep-speed preference to mpv's per-file reset list.
     try {
-      const { volume: saved } = await loadSettings()
+      const { volume: saved, keepPlaybackSpeed } = await loadSettings()
+      keepSpeedRef.current = keepPlaybackSpeed
+      setKeepSpeedState(keepPlaybackSpeed)
       await setProperty('volume', saved)
+      volumeRef.current = saved
+      if (saved > 0) lastNonZeroVolumeRef.current = saved
       setVolumeState(saved)
+      if (keepPlaybackSpeed) {
+        // Drop 'speed' from the per-file reset list so the chosen speed
+        // survives loadfile (the init options declare the full list;
+        // this runtime override narrows it when the preference is on).
+        await setProperty('reset-on-next-file', 'audio-delay,sub-delay')
+      }
     } catch {
       // best-effort; default volume (100) stays
     }
@@ -378,8 +412,12 @@ export function usePlayer(
       // is reset the same way (mpv restores speed=1 on loadfile).
       setAudioDelayState(0)
       setSubDelayState(0)
-      speedRef.current = 1
-      setSpeedState(1)
+      // With keep-speed on, mpv did NOT reset the speed (the reset list
+      // excludes it), so the mirror must keep the user's choice too;
+      // otherwise the chip shows ×1 while the video plays at ×1.5.
+      const startSpeed = keepSpeedRef.current ? lastSpeedRef.current : 1
+      speedRef.current = startSpeed
+      setSpeedState(startSpeed)
       // mpv starts playback automatically on loadfile; read the REAL state
       // back instead of assuming one, since observeProperties only fires on
       // CHANGE and never emits if our guess already matched reality.
@@ -479,6 +517,7 @@ export function usePlayer(
     const apply = (): number => {
       const next = nextPlaybackSpeed(speedRef.current, delta)
       speedRef.current = next
+      lastSpeedRef.current = next
       setSpeedState(next)
       void setProperty('speed', next).catch(() => {})
       return next
@@ -530,9 +569,11 @@ export function usePlayer(
     setFilename(null)
     // Reset the mirrored speed too: 'stop' keeps mpv's runtime speed (the
     // actual value is restored by reset-on-next-file at the next loadfile)
-    // and the home screen would otherwise show a stale ×0.5 chip.
-    speedRef.current = 1
-    setSpeedState(1)
+    // and the home screen would otherwise show a stale ×0.5 chip. With
+    // keep-speed on, mpv keeps the runtime speed -- mirror the same value.
+    const stopSpeed = keepSpeedRef.current ? lastSpeedRef.current : 1
+    speedRef.current = stopSpeed
+    setSpeedState(stopSpeed)
     // Invalidate the current load generation: mpv's stop discards tracks
     // added via sub-add, so a later reopen of the SAME path must re-run the
     // sidecar load (a bare path-based guard used to skip it).
@@ -573,6 +614,8 @@ export function usePlayer(
   const volumeSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingVolumeRef = useRef<number | null>(null)
   const setVolume = useCallback((v: number) => {
+    volumeRef.current = v
+    if (v > 0) lastNonZeroVolumeRef.current = v
     setVolumeState(v)
     void setProperty('volume', v).catch(() => {})
     pendingVolumeRef.current = v
@@ -582,6 +625,29 @@ export function usePlayer(
       pendingVolumeRef.current = null
       void updateSettings({ volume: v })
     }, 600)
+  }, [])
+
+  // Mute toggle for the 'm' shortcut: 0 <-> the last non-zero volume.
+  // Returns the resulting volume so the caller can show it in the OSD.
+  const toggleMute = useCallback((): number => {
+    const next = volumeRef.current === 0 ? lastNonZeroVolumeRef.current : 0
+    setVolume(next)
+    return next
+  }, [setVolume])
+
+  // Flips the keep-speed preference. Enabling it mid-session captures the
+  // CURRENT speed as the one to keep (a file playing at ×1.5 stays at ×1.5
+  // for the next one); disabling restores mpv's full per-file reset list.
+  const toggleKeepSpeed = useCallback(() => {
+    const next = !keepSpeedRef.current
+    keepSpeedRef.current = next
+    setKeepSpeedState(next)
+    if (next) lastSpeedRef.current = speedRef.current
+    void setProperty(
+      'reset-on-next-file',
+      next ? 'audio-delay,sub-delay' : 'speed,audio-delay,sub-delay',
+    ).catch(() => {})
+    void updateSettings({ keepPlaybackSpeed: next }).catch(() => {})
   }, [])
 
   return {
@@ -611,6 +677,9 @@ export function usePlayer(
     subDelay,
     adjustSpeed,
     speed,
+    keepPlaybackSpeed: keepSpeed,
+    toggleKeepSpeed,
+    toggleMute,
     stopPlayback,
     takeScreenshot,
     retryInit,

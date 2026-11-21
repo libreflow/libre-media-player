@@ -235,6 +235,11 @@ function App() {
     player.setVolume(v)
     showNotice(`${t('volumeLabel')} : ${v} %`)
   }, [player, showNotice])
+  // Same OSD treatment for the 'm' mute shortcut (VLC parity).
+  const toggleMuteWithOsd = useCallback(() => {
+    const v = player.toggleMute()
+    showNotice(`${t('volumeLabel')} : ${v} %`)
+  }, [player, showNotice])
   useKeyboardShortcuts({
     hasMedia,
     volume: player.volume,
@@ -250,6 +255,7 @@ function App() {
     togglePlaylist: () => playlist.setPanelOpen(!playlist.panelOpen),
     seekBy,
     setVolume: setVolumeWithOsd,
+    toggleMute: toggleMuteWithOsd,
     adjustSubDelay: player.adjustSubDelay,
     adjustAudioDelay: player.adjustAudioDelay,
     adjustSpeed: (delta) => {
@@ -524,6 +530,8 @@ function App() {
         locale={locale}
         onSwitchLocale={switchLocale}
         menusCloseSignal={helpOpen ? 1 : 0}
+        keepPlaybackSpeed={player.keepPlaybackSpeed}
+        onToggleKeepSpeed={player.toggleKeepSpeed}
         speed={player.speed}
         onResetSpeed={() => {
           // One click back to 1×: adjustSpeed takes a delta, so the exact
