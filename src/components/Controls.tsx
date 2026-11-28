@@ -4,6 +4,7 @@ import { SeekBar } from './controls/SeekBar'
 import { VolumeControl } from './controls/VolumeControl'
 import { TrackMenu } from './controls/TrackMenu'
 import { SubtitleButton } from './controls/SubtitleButton'
+import { SettingsMenu } from './controls/SettingsMenu'
 import type { MpvTrack } from '../subtitles'
 
 interface ControlsProps {
@@ -53,6 +54,10 @@ interface ControlsProps {
   onResetSpeed: () => void
   /** Opens the shortcuts help overlay. */
   onOpenShortcuts: () => void
+  /** Keep-speed preference + its toggle (settings menu, roadmap
+   * follow-up): when on, the chosen playback speed survives loadfile. */
+  keepPlaybackSpeed: boolean
+  onToggleKeepSpeed: () => void
   /** Toggles to a non-zero value when a full-screen overlay opens (help):
    *  the track menus read it to close -- they otherwise stayed open UNDER
    *  the help overlay, and Escape would only reveal them back. */
@@ -67,6 +72,7 @@ export function Controls(props: ControlsProps) {
     subTracks, audioTracks, onSelectSubtrack, onDisableSubtitles, onSelectAudioTrack,
     togglePause, toggleFullscreen, setVolume,
     onSeekChange, onSeekCommit, seekingRef, timePos, duration, visible, chapters, locale, onSwitchLocale,
+    keepPlaybackSpeed, onToggleKeepSpeed,
     speed, onResetSpeed, onOpenShortcuts, menusCloseSignal,
   } = props
   return (
@@ -129,6 +135,11 @@ export function Controls(props: ControlsProps) {
             ×{String(speed).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')}
           </button>
         )}
+        <SettingsMenu
+          keepPlaybackSpeed={keepPlaybackSpeed}
+          onToggleKeepSpeed={onToggleKeepSpeed}
+          closeSignal={menusCloseSignal}
+        />
         <label className="lang-switch">
           <span className="sr-only">{t('language')}</span>
           <select

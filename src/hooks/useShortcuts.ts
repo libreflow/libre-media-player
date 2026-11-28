@@ -44,6 +44,9 @@ export function useKeyboardShortcuts(opts: {
   // directly, which never ran updateSettings -- a keyboard-adjusted volume
   // was silently lost on restart.
   setVolume: (v: number) => void
+  // Mute toggle ('m', like VLC): 0 <-> the last non-zero volume. Optional
+  // so test harnesses can omit it (same pattern as toggleHelp).
+  toggleMute?: () => void
   // Subtitle delay nudge in seconds (roadmap #59): z = earlier, Z (shift+z)
   // = later, matching mpv's own default bindings. Both fire on the same
   // physical key so keyboard layouts stay irrelevant.
@@ -159,6 +162,12 @@ export function useKeyboardShortcuts(opts: {
           if (opts.hasMedia) {
             e.preventDefault()
             opts.adjustSubDelay(0.1)
+          }
+          break
+        case 'm':
+          if (opts.hasMedia) {
+            e.preventDefault()
+            opts.toggleMute?.()
           }
           break
         case 'c':

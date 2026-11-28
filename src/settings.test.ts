@@ -49,6 +49,7 @@ describe('loadSettings validation', () => {
       repeat: false,
       locale: 'fr',
       preferredAudioLang: 'any',
+      keepPlaybackSpeed: false,
     })
   })
 
@@ -61,7 +62,7 @@ describe('loadSettings validation', () => {
   it('accepts a well-formed file as-is', async () => {
     memory.set(
       '/mock-config/settings.json',
-      JSON.stringify({ volume: 42, shuffle: true, repeat: false, locale: 'en', preferredAudioLang: 'fre' }),
+      JSON.stringify({ volume: 42, shuffle: true, repeat: false, locale: 'en', preferredAudioLang: 'fre', keepPlaybackSpeed: true }),
     )
     const { loadSettings } = await freshLoad()
     await expect(loadSettings()).resolves.toEqual({
@@ -70,6 +71,7 @@ describe('loadSettings validation', () => {
       repeat: false,
       locale: 'en',
       preferredAudioLang: 'fre',
+      keepPlaybackSpeed: true,
     })
   })
 
@@ -89,6 +91,7 @@ describe('loadSettings validation', () => {
       repeat: false,
       locale: 'fr', // unknown -> default
       preferredAudioLang: 'any',
+      keepPlaybackSpeed: false,
     })
   })
 

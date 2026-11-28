@@ -740,3 +740,46 @@ describe('help overlay gates the other shortcuts', () => {
     expect(togglePlaylist).not.toHaveBeenCalled()
   })
 })
+
+// Mute shortcut (VLC parity): 'm' on the PHYSICAL key, gated on media
+// presence like every other playback shortcut.
+describe('mute shortcut', () => {
+  function MuteHarness({ toggleMute, hasMedia }: { toggleMute: () => void; hasMedia: boolean }) {
+    useKeyboardShortcuts({
+      hasMedia,
+      volume: 100,
+      isFullscreen: false,
+      isPlaylistOpen: false,
+      togglePause: () => {},
+      toggleFullscreen: () => {},
+      toggleSubtitles: () => {},
+      playNext: () => {},
+      playPrevious: () => {},
+      togglePlaylist: () => {},
+      seekBy: () => {},
+      setVolume: () => {},
+      toggleMute,
+      adjustSubDelay: () => {},
+      adjustAudioDelay: () => {},
+      takeScreenshot: () => {},
+      adjustSpeed: () => {},
+    })
+    return null
+  }
+
+  it('routes the physical M key to toggleMute', () => {
+    const toggleMute = vi.fn()
+    render(<MuteHarness toggleMute={toggleMute} hasMedia={true} />)
+    // AZERTY: unshifted KeyM produces ',' -- physical-key matching fires
+    // regardless of the layout.
+    act(() => press(',', 'KeyM'))
+    expect(toggleMute).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not toggle mute when hasMedia is false', () => {
+    const toggleMute = vi.fn()
+    render(<MuteHarness toggleMute={toggleMute} hasMedia={false} />)
+    act(() => press('m', 'KeyM'))
+    expect(toggleMute).not.toHaveBeenCalled()
+  })
+})
